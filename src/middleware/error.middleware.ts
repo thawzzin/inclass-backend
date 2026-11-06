@@ -9,6 +9,7 @@ export const notFoundHandler: RequestHandler = (_request, _response, next) => {
 
 export function createErrorHandler(logger: Logger): ErrorRequestHandler {
   return (error: unknown, _request, response, _next) => {
+    void _next;
     if (error instanceof AppError) {
       if (error.statusCode >= 500) {
         logger.error({ err: error }, error.message);

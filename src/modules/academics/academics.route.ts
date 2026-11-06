@@ -1,3 +1,163 @@
-import { Router } from 'express'; import type { Env } from '../../config/env.js'; import { authenticate, csrfProtection } from '../../middleware/auth.middleware.js'; import { requireRole } from '../../middleware/role.middleware.js'; import { validateBody } from '../../middleware/validate.middleware.js'; import type { AuthServiceContract } from '../auth/auth.service.js'; import { assignment, courseCreate, courseUpdate, sectionCreate, sectionUpdate, statusSchema, type Assignment, type CourseCreate, type CourseUpdate, type SectionCreate, type SectionUpdate, type Status } from './academics.schemas.js'; import type { AcademicsServiceContract } from './academics.service.js';
-const send=(fn:(req:any)=>Promise<unknown>,message:string,status=200)=>(req:any,res:any,next:any)=>fn(req).then(data=>res.status(status).json({success:true,data,message})).catch(next);
-export function createAcademicsRouter(auth:AuthServiceContract,svc:AcademicsServiceContract,env:Env){const r=Router();r.use(authenticate(auth));r.get('/courses',send(q=>svc.listCourses(q.auth.id,q.auth.role),'Courses retrieved'));r.get('/courses/:id',send(q=>svc.getCourse(q.params.id,q.auth.id,q.auth.role),'Course retrieved'));r.get('/sections',send(q=>svc.listSections(q.auth.id,q.auth.role),'Sections retrieved'));r.get('/sections/:id',send(q=>svc.getSection(q.params.id,q.auth.id,q.auth.role),'Section retrieved'));r.use(requireRole('ADMIN'));r.post('/courses',csrfProtection(env),validateBody(courseCreate),send(q=>svc.createCourse(q.body as CourseCreate),'Course created',201));r.patch('/courses/:id',csrfProtection(env),validateBody(courseUpdate),send(q=>svc.updateCourse(q.params.id,q.body as CourseUpdate),'Course updated'));r.patch('/courses/:id/status',csrfProtection(env),validateBody(statusSchema),send(q=>svc.courseStatus(q.params.id,q.body as Status),'Course status updated'));r.post('/sections',csrfProtection(env),validateBody(sectionCreate),send(q=>svc.createSection(q.body as SectionCreate),'Section created',201));r.patch('/sections/:id',csrfProtection(env),validateBody(sectionUpdate),send(q=>svc.updateSection(q.params.id,q.body as SectionUpdate),'Section updated'));r.patch('/sections/:id/status',csrfProtection(env),validateBody(statusSchema),send(q=>svc.sectionStatus(q.params.id,q.body as Status),'Section status updated'));r.patch('/sections/:id/teacher',csrfProtection(env),validateBody(assignment),send(q=>svc.assignTeacher(q.params.id,q.body as Assignment),'Teacher assigned'));return r;}
+import { Router } from 'express';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+
+import type { Env } from '../../config/env.js';
+import { AppError } from '../../errors/app-error.js';
+import { authenticate, csrfProtection } from '../../middleware/auth.middleware.js';
+import { requireRole } from '../../middleware/role.middleware.js';
+import { validateBody } from '../../middleware/validate.middleware.js';
+import type { AuthServiceContract } from '../auth/auth.service.js';
+import {
+  assignment,
+  courseCreate,
+  courseUpdate,
+  sectionCreate,
+  sectionUpdate,
+  statusSchema,
+  type Assignment,
+  type CourseCreate,
+  type CourseUpdate,
+  type SectionCreate,
+  type SectionUpdate,
+  type Status,
+} from './academics.schemas.js';
+import type { AcademicsServiceContract } from './academics.service.js';
+
+function pathParam(request: Request, name: string): string {
+  const value = request.params[name];
+  if (typeof value !== 'string') throw new AppError(400, `Missing path parameter: ${name}`);
+  return value;
+}
+
+function respond(
+  action: (request: Request) => Promise<unknown>,
+  message: string,
+  status = 200,
+): RequestHandler {
+  return async (request: Request, response: Response, next: NextFunction) => {
+    try {
+      response.status(status).json({ success: true, data: await action(request), message });
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+export function createAcademicsRouter(
+  auth: AuthServiceContract,
+  service: AcademicsServiceContract,
+  env: Env,
+): Router {
+  const router = Router();
+  router.get(
+    '/courses',
+    authenticate(auth),
+    respond(
+      (request) => service.listCourses(request.auth!.id, request.auth!.role),
+      'Courses retrieved',
+    ),
+  );
+  router.get(
+    '/courses/:id',
+    authenticate(auth),
+    respond(
+      (request) =>
+        service.getCourse(pathParam(request, 'id'), request.auth!.id, request.auth!.role),
+      'Course retrieved',
+    ),
+  );
+  router.get(
+    '/sections',
+    authenticate(auth),
+    respond(
+      (request) => service.listSections(request.auth!.id, request.auth!.role),
+      'Sections retrieved',
+    ),
+  );
+  router.get(
+    '/sections/:id',
+    authenticate(auth),
+    respond(
+      (request) =>
+        service.getSection(pathParam(request, 'id'), request.auth!.id, request.auth!.role),
+      'Section retrieved',
+    ),
+  );
+
+  router.post(
+    '/courses',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(courseCreate),
+    respond((request) => service.createCourse(request.body as CourseCreate), 'Course created', 201),
+  );
+  router.patch(
+    '/courses/:id',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(courseUpdate),
+    respond(
+      (request) => service.updateCourse(pathParam(request, 'id'), request.body as CourseUpdate),
+      'Course updated',
+    ),
+  );
+  router.patch(
+    '/courses/:id/status',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(statusSchema),
+    respond(
+      (request) => service.courseStatus(pathParam(request, 'id'), request.body as Status),
+      'Course status updated',
+    ),
+  );
+  router.post(
+    '/sections',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(sectionCreate),
+    respond(
+      (request) => service.createSection(request.body as SectionCreate),
+      'Section created',
+      201,
+    ),
+  );
+  router.patch(
+    '/sections/:id',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(sectionUpdate),
+    respond(
+      (request) => service.updateSection(pathParam(request, 'id'), request.body as SectionUpdate),
+      'Section updated',
+    ),
+  );
+  router.patch(
+    '/sections/:id/status',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(statusSchema),
+    respond(
+      (request) => service.sectionStatus(pathParam(request, 'id'), request.body as Status),
+      'Section status updated',
+    ),
+  );
+  router.patch(
+    '/sections/:id/teacher',
+    authenticate(auth),
+    requireRole('ADMIN'),
+    csrfProtection(env),
+    validateBody(assignment),
+    respond(
+      (request) => service.assignTeacher(pathParam(request, 'id'), request.body as Assignment),
+      'Teacher assigned',
+    ),
+  );
+  return router;
+}

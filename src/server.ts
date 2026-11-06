@@ -14,7 +14,7 @@ const server = app.listen(env.PORT, () => {
 
 let shuttingDown = false;
 
-async function shutdown(signal: NodeJS.Signals): Promise<void> {
+function shutdown(signal: NodeJS.Signals): void {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, 'Shutting down InClass API');

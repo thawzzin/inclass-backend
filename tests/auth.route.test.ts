@@ -30,14 +30,24 @@ function createAuthService(): AuthServiceContract {
   return {
     authenticate: async () => user,
     login: async () => ({ user, accessToken: 'access-token', refreshToken: 'refresh-token' }),
-    refresh: async () => ({ user, accessToken: 'rotated-access-token', refreshToken: 'rotated-refresh-token' }),
+    refresh: async () => ({
+      user,
+      accessToken: 'rotated-access-token',
+      refreshToken: 'rotated-refresh-token',
+    }),
     logout: async () => undefined,
-    updateProfile: async () => ({ user, accessToken: 'replacement-access-token', refreshToken: 'replacement-refresh-token' }),
+    updateProfile: async () => ({
+      user,
+      accessToken: 'replacement-access-token',
+      refreshToken: 'replacement-refresh-token',
+    }),
     changePassword: async () => undefined,
   };
 }
 
-async function csrfToken(app: ReturnType<typeof createApp>): Promise<{ token: string; cookie: string }> {
+async function csrfToken(
+  app: ReturnType<typeof createApp>,
+): Promise<{ token: string; cookie: string }> {
   const response = await request(app).get('/api/v1/auth/csrf');
   const [setCookie] = response.headers['set-cookie'] ?? [];
   if (!setCookie) throw new Error('CSRF response did not set a cookie');
@@ -71,13 +81,16 @@ describe('authentication routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.user).toEqual(user);
-    expect((response.headers['set-cookie'] ?? []).join(';')).toContain('HttpOnly');
+    const cookies = response.headers['set-cookie'];
+    expect(Array.isArray(cookies) ? cookies.join(';') : (cookies ?? '')).toContain('HttpOnly');
   });
 
   it('returns the current database-authorized user', async () => {
     const app = createApp({ env, authService: createAuthService() });
 
-    const response = await request(app).get('/api/v1/auth/me').set('Cookie', 'inclass_access=access-token');
+    const response = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Cookie', 'inclass_access=access-token');
 
     expect(response.status).toBe(200);
     expect(response.body.data.user).toEqual(user);

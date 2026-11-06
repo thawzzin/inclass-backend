@@ -5,7 +5,12 @@ const email = z.string().trim().email().max(320);
 const name = z.string().trim().min(1).max(120);
 
 export const createTeacherSchema = z.object({ name, email, password });
-export const updateTeacherSchema = z.object({ name: name.optional(), email: email.optional() }).refine((value) => value.name !== undefined || value.email !== undefined, 'Provide at least one field');
+export const updateTeacherSchema = z
+  .object({ name: name.optional(), email: email.optional() })
+  .refine(
+    (value) => value.name !== undefined || value.email !== undefined,
+    'Provide at least one field',
+  );
 export const statusSchema = z.object({ status: z.enum(['ACTIVE', 'INACTIVE']) });
 export const teacherPasswordSchema = z.object({ password });
 export const teacherListQuerySchema = z.object({

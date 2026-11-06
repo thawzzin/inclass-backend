@@ -1,8 +1,136 @@
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { AppError } from '../../errors/app-error.js';
-import type { Assignment, CourseCreate, CourseUpdate, SectionCreate, SectionUpdate, Status } from './academics.schemas.js';
-const courseSelect={id:true,code:true,name:true,status:true,createdAt:true,updatedAt:true} as const; const sectionSelect={id:true,courseId:true,sectionCode:true,teacherId:true,status:true,createdAt:true,updatedAt:true,course:{select:courseSelect},teacher:{select:{id:true,name:true,email:true,status:true}}} as const;
-export interface AcademicsServiceContract { listCourses(userId:string,role:string):Promise<unknown[]>; createCourse(i:CourseCreate):Promise<unknown>; getCourse(id:string,userId:string,role:string):Promise<unknown>; updateCourse(id:string,i:CourseUpdate):Promise<unknown>; courseStatus(id:string,i:Status):Promise<unknown>; listSections(userId:string,role:string):Promise<unknown[]>; createSection(i:SectionCreate):Promise<unknown>; getSection(id:string,userId:string,role:string):Promise<unknown>; updateSection(id:string,i:SectionUpdate):Promise<unknown>; sectionStatus(id:string,i:Status):Promise<unknown>; assignTeacher(id:string,i:Assignment):Promise<unknown>; }
-export class AcademicsService implements AcademicsServiceContract { public constructor(private readonly prisma:PrismaClient){} private conflict(e:unknown){return typeof e==='object'&&e!==null&&'code'in e&&e.code==='P2002'} private async activeTeacher(id:string){const t=await this.prisma.user.findFirst({where:{id,role:'TEACHER',status:'ACTIVE'},select:{id:true}});if(!t)throw new AppError(422,'Assigned user must be an active teacher');}
- async listCourses(uid:string,role:string){return this.prisma.course.findMany({where:role==='ADMIN'?{}:{sections:{some:{teacherId:uid}}},select:courseSelect,orderBy:{code:'asc'}})} async createCourse(i:CourseCreate){try{return await this.prisma.course.create({data:{code:i.code,name:i.name},select:courseSelect})}catch(e){if(this.conflict(e))throw new AppError(409,'Course code is already in use');throw e}} async getCourse(id:string,uid:string,role:string){const c=await this.prisma.course.findFirst({where:{id,...(role==='ADMIN'?{}:{sections:{some:{teacherId:uid}}})},select:courseSelect});if(!c)throw new AppError(404,'Course not found');return c} async updateCourse(id:string,i:CourseUpdate){await this.getCourse(id,'','ADMIN');return this.prisma.course.update({where:{id},data:i,select:courseSelect})} async courseStatus(id:string,i:Status){await this.getCourse(id,'','ADMIN');return this.prisma.course.update({where:{id},data:i,select:courseSelect})}
- async listSections(uid:string,role:string){return this.prisma.section.findMany({where:role==='ADMIN'?{}:{teacherId:uid},select:sectionSelect,orderBy:{sectionCode:'asc'}})} async createSection(i:SectionCreate){await this.activeTeacher(i.teacherId);try{return await this.prisma.section.create({data:i,select:sectionSelect})}catch(e){if(this.conflict(e))throw new AppError(409,'Section code already exists for this course');throw e}} async getSection(id:string,uid:string,role:string){const s=await this.prisma.section.findFirst({where:{id,...(role==='ADMIN'?{}:{teacherId:uid})},select:sectionSelect});if(!s)throw new AppError(404,'Section not found');return s} async updateSection(id:string,i:SectionUpdate){await this.getSection(id,'','ADMIN');try{return await this.prisma.section.update({where:{id},data:i,select:sectionSelect})}catch(e){if(this.conflict(e))throw new AppError(409,'Section code already exists for this course');throw e}} async sectionStatus(id:string,i:Status){await this.getSection(id,'','ADMIN');return this.prisma.section.update({where:{id},data:i,select:sectionSelect})} async assignTeacher(id:string,i:Assignment){await this.getSection(id,'','ADMIN');await this.activeTeacher(i.teacherId);return this.prisma.section.update({where:{id},data:i,select:sectionSelect})}}
+import type {
+  Assignment,
+  CourseCreate,
+  CourseUpdate,
+  SectionCreate,
+  SectionUpdate,
+  Status,
+} from './academics.schemas.js';
+const courseSelect = {
+  id: true,
+  code: true,
+  name: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+const sectionSelect = {
+  id: true,
+  courseId: true,
+  sectionCode: true,
+  teacherId: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  course: { select: courseSelect },
+  teacher: { select: { id: true, name: true, email: true, status: true } },
+} as const;
+export interface AcademicsServiceContract {
+  listCourses(userId: string, role: string): Promise<unknown[]>;
+  createCourse(i: CourseCreate): Promise<unknown>;
+  getCourse(id: string, userId: string, role: string): Promise<unknown>;
+  updateCourse(id: string, i: CourseUpdate): Promise<unknown>;
+  courseStatus(id: string, i: Status): Promise<unknown>;
+  listSections(userId: string, role: string): Promise<unknown[]>;
+  createSection(i: SectionCreate): Promise<unknown>;
+  getSection(id: string, userId: string, role: string): Promise<unknown>;
+  updateSection(id: string, i: SectionUpdate): Promise<unknown>;
+  sectionStatus(id: string, i: Status): Promise<unknown>;
+  assignTeacher(id: string, i: Assignment): Promise<unknown>;
+}
+export class AcademicsService implements AcademicsServiceContract {
+  public constructor(private readonly prisma: PrismaClient) {}
+  private conflict(e: unknown) {
+    return typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002';
+  }
+  private async activeTeacher(id: string) {
+    const t = await this.prisma.user.findFirst({
+      where: { id, role: 'TEACHER', status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!t) throw new AppError(422, 'Assigned user must be an active teacher');
+  }
+  async listCourses(uid: string, role: string) {
+    return this.prisma.course.findMany({
+      where: role === 'ADMIN' ? {} : { sections: { some: { teacherId: uid } } },
+      select: courseSelect,
+      orderBy: { code: 'asc' },
+    });
+  }
+  async createCourse(i: CourseCreate) {
+    try {
+      return await this.prisma.course.create({
+        data: { code: i.code, name: i.name },
+        select: courseSelect,
+      });
+    } catch (e) {
+      if (this.conflict(e)) throw new AppError(409, 'Course code is already in use');
+      throw e;
+    }
+  }
+  async getCourse(id: string, uid: string, role: string) {
+    const c = await this.prisma.course.findFirst({
+      where: { id, ...(role === 'ADMIN' ? {} : { sections: { some: { teacherId: uid } } }) },
+      select: courseSelect,
+    });
+    if (!c) throw new AppError(404, 'Course not found');
+    return c;
+  }
+  async updateCourse(id: string, i: CourseUpdate) {
+    await this.getCourse(id, '', 'ADMIN');
+    const data = {
+      ...(i.code === undefined ? {} : { code: i.code }),
+      ...(i.name === undefined ? {} : { name: i.name }),
+    };
+    return this.prisma.course.update({ where: { id }, data, select: courseSelect });
+  }
+  async courseStatus(id: string, i: Status) {
+    await this.getCourse(id, '', 'ADMIN');
+    return this.prisma.course.update({ where: { id }, data: i, select: courseSelect });
+  }
+  async listSections(uid: string, role: string) {
+    return this.prisma.section.findMany({
+      where: role === 'ADMIN' ? {} : { teacherId: uid },
+      select: sectionSelect,
+      orderBy: { sectionCode: 'asc' },
+    });
+  }
+  async createSection(i: SectionCreate) {
+    await this.activeTeacher(i.teacherId);
+    try {
+      return await this.prisma.section.create({ data: i, select: sectionSelect });
+    } catch (e) {
+      if (this.conflict(e)) throw new AppError(409, 'Section code already exists for this course');
+      throw e;
+    }
+  }
+  async getSection(id: string, uid: string, role: string) {
+    const s = await this.prisma.section.findFirst({
+      where: { id, ...(role === 'ADMIN' ? {} : { teacherId: uid }) },
+      select: sectionSelect,
+    });
+    if (!s) throw new AppError(404, 'Section not found');
+    return s;
+  }
+  async updateSection(id: string, i: SectionUpdate) {
+    await this.getSection(id, '', 'ADMIN');
+    const data = i.sectionCode === undefined ? {} : { sectionCode: i.sectionCode };
+    try {
+      return await this.prisma.section.update({ where: { id }, data, select: sectionSelect });
+    } catch (e) {
+      if (this.conflict(e)) throw new AppError(409, 'Section code already exists for this course');
+      throw e;
+    }
+  }
+  async sectionStatus(id: string, i: Status) {
+    await this.getSection(id, '', 'ADMIN');
+    return this.prisma.section.update({ where: { id }, data: i, select: sectionSelect });
+  }
+  async assignTeacher(id: string, i: Assignment) {
+    await this.getSection(id, '', 'ADMIN');
+    await this.activeTeacher(i.teacherId);
+    return this.prisma.section.update({ where: { id }, data: i, select: sectionSelect });
+  }
+}

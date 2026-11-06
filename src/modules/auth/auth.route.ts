@@ -11,7 +11,14 @@ import {
   issueCsrfToken,
   setAuthCookies,
 } from './auth.security.js';
-import { loginSchema, passwordChangeSchema, profileSchema, type LoginInput, type PasswordChangeInput, type ProfileInput } from './auth.schemas.js';
+import {
+  loginSchema,
+  passwordChangeSchema,
+  profileSchema,
+  type LoginInput,
+  type PasswordChangeInput,
+  type ProfileInput,
+} from './auth.schemas.js';
 import type { AuthServiceContract } from './auth.service.js';
 
 function loginRateLimiter() {
@@ -37,15 +44,23 @@ export function createAuthRouter(service: AuthServiceContract, env: Env): Router
     });
   });
 
-  router.post('/login', loginRateLimiter(), csrfProtection(env), validateBody(loginSchema), async (request, response, next) => {
-    try {
-      const session = await service.login(request.body as LoginInput);
-      setAuthCookies(response, session.accessToken, session.refreshToken, env);
-      response.status(200).json({ success: true, data: { user: session.user }, message: 'Login successful' });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.post(
+    '/login',
+    loginRateLimiter(),
+    csrfProtection(env),
+    validateBody(loginSchema),
+    async (request, response, next) => {
+      try {
+        const session = await service.login(request.body as LoginInput);
+        setAuthCookies(response, session.accessToken, session.refreshToken, env);
+        response
+          .status(200)
+          .json({ success: true, data: { user: session.user }, message: 'Login successful' });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   router.post('/refresh', csrfProtection(env), async (request, response, next) => {
     try {
@@ -53,7 +68,9 @@ export function createAuthRouter(service: AuthServiceContract, env: Env): Router
       if (!refreshToken) throw new AppError(401, 'Refresh session is required');
       const session = await service.refresh(refreshToken);
       setAuthCookies(response, session.accessToken, session.refreshToken, env);
-      response.status(200).json({ success: true, data: { user: session.user }, message: 'Access token refreshed' });
+      response
+        .status(200)
+        .json({ success: true, data: { user: session.user }, message: 'Access token refreshed' });
     } catch (error) {
       clearAuthCookies(response, env);
       next(error);
@@ -71,28 +88,47 @@ export function createAuthRouter(service: AuthServiceContract, env: Env): Router
   });
 
   router.get('/me', authenticate(service), (request, response) => {
-    response.status(200).json({ success: true, data: { user: request.auth }, message: 'Current user retrieved' });
+    response
+      .status(200)
+      .json({ success: true, data: { user: request.auth }, message: 'Current user retrieved' });
   });
 
-  router.patch('/profile', authenticate(service), csrfProtection(env), validateBody(profileSchema), async (request, response, next) => {
-    try {
-      const result = await service.updateProfile(request.auth!.id, request.body as ProfileInput);
-      if (result.accessToken && result.refreshToken) setAuthCookies(response, result.accessToken, result.refreshToken, env);
-      response.status(200).json({ success: true, data: { user: result.user }, message: 'Profile updated' });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.patch(
+    '/profile',
+    authenticate(service),
+    csrfProtection(env),
+    validateBody(profileSchema),
+    async (request, response, next) => {
+      try {
+        const result = await service.updateProfile(request.auth!.id, request.body as ProfileInput);
+        if (result.accessToken && result.refreshToken)
+          setAuthCookies(response, result.accessToken, result.refreshToken, env);
+        response
+          .status(200)
+          .json({ success: true, data: { user: result.user }, message: 'Profile updated' });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
-  router.patch('/password', authenticate(service), csrfProtection(env), validateBody(passwordChangeSchema), async (request, response, next) => {
-    try {
-      await service.changePassword(request.auth!.id, request.body as PasswordChangeInput);
-      clearAuthCookies(response, env);
-      response.status(200).json({ success: true, data: {}, message: 'Password changed; please sign in again' });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.patch(
+    '/password',
+    authenticate(service),
+    csrfProtection(env),
+    validateBody(passwordChangeSchema),
+    async (request, response, next) => {
+      try {
+        await service.changePassword(request.auth!.id, request.body as PasswordChangeInput);
+        clearAuthCookies(response, env);
+        response
+          .status(200)
+          .json({ success: true, data: {}, message: 'Password changed; please sign in again' });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   return router;
 }

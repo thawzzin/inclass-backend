@@ -1,2 +1,150 @@
-import { Router } from 'express';import type { Env } from '../../config/env.js';import {authenticate,csrfProtection} from '../../middleware/auth.middleware.js';import {validateBody} from '../../middleware/validate.middleware.js';import type {AuthServiceContract} from '../auth/auth.service.js';import {AttendanceService} from './attendance.service.js';import {bulkRecords,createSession,recordUpdate,type Bulk} from './attendance.schemas.js';
-export function attendanceRouter(auth:AuthServiceContract,s:AttendanceService,e:Env){const r=Router({mergeParams:true});r.use(authenticate(auth));r.get('/sections/:id/attendance-sessions',async(q,x,n)=>{try{x.json({success:true,data:await s.list(q.params.id,q.auth!.id,q.auth!.role),message:'Attendance sessions retrieved'})}catch(z){n(z)}});r.post('/sections/:id/attendance-sessions',csrfProtection(e),validateBody(createSession),async(q,x,n)=>{try{x.status(201).json({success:true,data:await s.create(q.params.id,q.body.date,q.auth!.id,q.auth!.role),message:'Attendance session created'})}catch(z){n(z)}});r.get('/attendance-sessions/:id',async(q,x,n)=>{try{x.json({success:true,data:await s.detail(q.params.id,q.auth!.id,q.auth!.role),message:'Attendance session retrieved'})}catch(z){n(z)}});r.post('/attendance-sessions/:id/records/bulk',csrfProtection(e),validateBody(bulkRecords),async(q,x,n)=>{try{x.status(201).json({success:true,data:await s.bulk(q.params.id,(q.body as Bulk).records,q.auth!.id,q.auth!.role),message:'Attendance recorded'})}catch(z){n(z)}});r.patch('/attendance-sessions/:id/records/:studentId',csrfProtection(e),validateBody(recordUpdate),async(q,x,n)=>{try{await s.update(q.params.id,q.params.studentId,q.body.status,q.auth!.id,q.auth!.role);x.json({success:true,data:{},message:'Attendance updated'})}catch(z){n(z)}});r.post('/attendance-sessions/:id/records/mark-all-present',csrfProtection(e),async(q,x,n)=>{try{x.json({success:true,data:await s.allPresent(q.params.id,q.auth!.id,q.auth!.role),message:'Unmarked students marked present'})}catch(z){n(z)}});return r}
+import { Router } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+
+import type { Env } from '../../config/env.js';
+import { AppError } from '../../errors/app-error.js';
+import { authenticate, csrfProtection } from '../../middleware/auth.middleware.js';
+import { validateBody } from '../../middleware/validate.middleware.js';
+import type { AuthServiceContract } from '../auth/auth.service.js';
+import type { AttendanceService } from './attendance.service.js';
+import {
+  bulkRecords,
+  createSession,
+  recordUpdate,
+  type Bulk,
+  type CreateSession,
+  type RecordUpdate,
+} from './attendance.schemas.js';
+
+function pathParam(request: Request, name: string): string {
+  const value = request.params[name];
+  if (typeof value !== 'string') throw new AppError(400, `Missing path parameter: ${name}`);
+  return value;
+}
+
+export function attendanceRouter(
+  auth: AuthServiceContract,
+  service: AttendanceService,
+  env: Env,
+): Router {
+  const router = Router({ mergeParams: true });
+  router.get(
+    '/sections/:id/attendance-sessions',
+    authenticate(auth),
+    async (request: Request, response: Response, next: NextFunction) => {
+      try {
+        response.json({
+          success: true,
+          data: await service.list(pathParam(request, 'id'), request.auth!.id, request.auth!.role),
+          message: 'Attendance sessions retrieved',
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.post(
+    '/sections/:id/attendance-sessions',
+    authenticate(auth),
+    csrfProtection(env),
+    validateBody(createSession),
+    async (request: Request, response: Response, next: NextFunction) => {
+      try {
+        response.status(201).json({
+          success: true,
+          data: await service.create(
+            pathParam(request, 'id'),
+            (request.body as CreateSession).date,
+            request.auth!.id,
+            request.auth!.role,
+          ),
+          message: 'Attendance session created',
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.get(
+    '/attendance-sessions/:id',
+    authenticate(auth),
+    async (request: Request, response: Response, next: NextFunction) => {
+      try {
+        response.json({
+          success: true,
+          data: await service.detail(
+            pathParam(request, 'id'),
+            request.auth!.id,
+            request.auth!.role,
+          ),
+          message: 'Attendance session retrieved',
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.post(
+    '/attendance-sessions/:id/records/bulk',
+    authenticate(auth),
+    csrfProtection(env),
+    validateBody(bulkRecords),
+    async (request: Request, response: Response, next: NextFunction) => {
+      try {
+        response.status(201).json({
+          success: true,
+          data: await service.bulk(
+            pathParam(request, 'id'),
+            (request.body as Bulk).records,
+            request.auth!.id,
+            request.auth!.role,
+          ),
+          message: 'Attendance recorded',
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.patch(
+    '/attendance-sessions/:id/records/:studentId',
+    authenticate(auth),
+    csrfProtection(env),
+    validateBody(recordUpdate),
+    async (request: Request, response: Response, next: NextFunction) => {
+      try {
+        await service.update(
+          pathParam(request, 'id'),
+          pathParam(request, 'studentId'),
+          (request.body as RecordUpdate).status,
+          request.auth!.id,
+          request.auth!.role,
+        );
+        response.json({ success: true, data: {}, message: 'Attendance updated' });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.post(
+    '/attendance-sessions/:id/records/mark-all-present',
+    authenticate(auth),
+    csrfProtection(env),
+    async (request: Request, response: Response, next: NextFunction) => {
+      try {
+        response.json({
+          success: true,
+          data: await service.allPresent(
+            pathParam(request, 'id'),
+            request.auth!.id,
+            request.auth!.role,
+          ),
+          message: 'Unmarked students marked present',
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  return router;
+}

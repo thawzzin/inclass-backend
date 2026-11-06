@@ -16,9 +16,15 @@ import { createAuthRouter } from './modules/auth/auth.route.js';
 import { getPrisma } from './lib/prisma.js';
 import { UserService, type UserServiceContract } from './modules/users/users.service.js';
 import { createUsersRouter } from './modules/users/users.route.js';
-import { StudentService, type StudentServiceContract } from './modules/students/students.service.js';
+import {
+  StudentService,
+  type StudentServiceContract,
+} from './modules/students/students.service.js';
 import { createStudentsRouter } from './modules/students/students.route.js';
-import { AcademicsService, type AcademicsServiceContract } from './modules/academics/academics.service.js';
+import {
+  AcademicsService,
+  type AcademicsServiceContract,
+} from './modules/academics/academics.service.js';
 import { createAcademicsRouter } from './modules/academics/academics.route.js';
 import { EnrollmentService } from './modules/enrollments/enrollments.service.js';
 import { createEnrollmentsRouter } from './modules/enrollments/enrollments.route.js';
@@ -39,12 +45,13 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const env = options.env ?? getEnv();
   const logger = options.logger ?? createLogger(env);
   const databaseCheck = options.checkDatabase ?? defaultDatabaseCheck;
-  const authService = options.authService ?? new AuthService(getPrisma(), env);
-  const userService = options.userService ?? new UserService(getPrisma());
-  const studentService = options.studentService ?? new StudentService(getPrisma());
-  const academicsService = options.academicsService ?? new AcademicsService(getPrisma());
-  const enrollmentService = new EnrollmentService(getPrisma());
-  const attendanceService = new AttendanceService(getPrisma());
+  const prisma = getPrisma(env.DATABASE_URL);
+  const authService = options.authService ?? new AuthService(prisma, env);
+  const userService = options.userService ?? new UserService(prisma);
+  const studentService = options.studentService ?? new StudentService(prisma);
+  const academicsService = options.academicsService ?? new AcademicsService(prisma);
+  const enrollmentService = new EnrollmentService(prisma);
+  const attendanceService = new AttendanceService(prisma);
   const app = express();
 
   app.set('trust proxy', env.TRUST_PROXY);
@@ -72,7 +79,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/users', createUsersRouter(authService, userService, env));
   app.use('/api/v1/students', createStudentsRouter(authService, studentService, env));
   app.use('/api/v1', createAcademicsRouter(authService, academicsService, env));
-  app.use('/api/v1/sections/:id/enrollments', createEnrollmentsRouter(authService, enrollmentService, env));
+  app.use(
+    '/api/v1/sections/:id/enrollments',
+    createEnrollmentsRouter(authService, enrollmentService, env),
+  );
   app.use('/api/v1', attendanceRouter(authService, attendanceService, env));
 
   app.use(notFoundHandler);

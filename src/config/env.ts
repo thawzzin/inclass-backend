@@ -30,7 +30,10 @@ const envSchema = z.object({
   REFRESH_TOKEN_EXPIRES_IN_DAYS: z.coerce.number().int().positive(),
   FRONTEND_URL: z.url(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  TRUST_PROXY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -50,7 +50,8 @@ export async function signAccessToken(payload: AccessPayload, env: Env): Promise
 
 export async function verifyAccessToken(token: string, env: Env): Promise<AccessPayload> {
   const { payload } = await jwtVerify(token, accessSecret(env), { algorithms: ['HS256'] });
-  if (!payload.sub || typeof payload.tokenVersion !== 'number') throw new Error('Invalid access token payload');
+  if (!payload.sub || typeof payload.tokenVersion !== 'number')
+    throw new Error('Invalid access token payload');
   return { userId: payload.sub, tokenVersion: payload.tokenVersion };
 }
 
@@ -62,9 +63,22 @@ export function hashRefreshToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-export function setAuthCookies(response: Response, accessToken: string, refreshToken: string, env: Env): void {
-  response.cookie(accessCookieName, accessToken, secureCookieOptions(env, durationSeconds(env.ACCESS_TOKEN_EXPIRES_IN) * 1_000));
-  response.cookie(refreshCookieName, refreshToken, secureCookieOptions(env, env.REFRESH_TOKEN_EXPIRES_IN_DAYS * 86_400_000));
+export function setAuthCookies(
+  response: Response,
+  accessToken: string,
+  refreshToken: string,
+  env: Env,
+): void {
+  response.cookie(
+    accessCookieName,
+    accessToken,
+    secureCookieOptions(env, durationSeconds(env.ACCESS_TOKEN_EXPIRES_IN) * 1_000),
+  );
+  response.cookie(
+    refreshCookieName,
+    refreshToken,
+    secureCookieOptions(env, env.REFRESH_TOKEN_EXPIRES_IN_DAYS * 86_400_000),
+  );
 }
 
 export function clearAuthCookies(response: Response, env: Env): void {
@@ -88,7 +102,7 @@ export function issueCsrfToken(response: Response, env: Env): string {
 }
 
 export function verifyCsrfToken(request: Request, env: Env): boolean {
-  const cookieToken = request.cookies[csrfCookieName];
+  const cookieToken: unknown = request.cookies[csrfCookieName];
   const headerToken = request.header('x-csrf-token');
   if (typeof cookieToken !== 'string' || !headerToken || cookieToken !== headerToken) return false;
   const [nonce, signature, extra] = headerToken.split('.');
@@ -96,5 +110,8 @@ export function verifyCsrfToken(request: Request, env: Env): boolean {
   const expected = csrfSignature(nonce, env);
   const expectedBuffer = Buffer.from(expected);
   const providedBuffer = Buffer.from(signature);
-  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+  return (
+    expectedBuffer.length === providedBuffer.length &&
+    timingSafeEqual(expectedBuffer, providedBuffer)
+  );
 }

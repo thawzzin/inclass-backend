@@ -1,2 +1,65 @@
-import type { PrismaClient } from '../../generated/prisma/client.js'; import { AppError } from '../../errors/app-error.js';
-export class EnrollmentService { public constructor(private readonly prisma:PrismaClient){} private async section(id:string,uid:string,role:string){const s=await this.prisma.section.findFirst({where:{id,...(role==='ADMIN'?{}:{teacherId:uid})},select:{id:true}});if(!s)throw new AppError(404,'Section not found');return s} async list(id:string,uid:string,role:string){await this.section(id,uid,role);return this.prisma.enrollment.findMany({where:{sectionId:id},include:{student:true},orderBy:{student:{studentId:'asc'}}})} async enroll(id:string,studentId:string){await this.section(id,'','ADMIN');const student=await this.prisma.student.findFirst({where:{id:studentId,status:'ACTIVE'},select:{id:true}});if(!student)throw new AppError(422,'Student must be active');try{return await this.prisma.enrollment.create({data:{sectionId:id,studentId},include:{student:true}})}catch(e){if(typeof e==='object'&&e!==null&&'code'in e&&e.code==='P2002')throw new AppError(409,'Student is already enrolled');throw e}} async bulk(id:string,ids:string[]){await this.section(id,'','ADMIN');return this.prisma.$transaction(async tx=>{for(const sid of ids){const st=await tx.student.findFirst({where:{id:sid,status:'ACTIVE'},select:{id:true}});if(!st)throw new AppError(422,'All students must be active')}try{return await tx.enrollment.createMany({data:ids.map(studentId=>({sectionId:id,studentId}))})}catch(e){if(typeof e==='object'&&e!==null&&'code'in e&&e.code==='P2002')throw new AppError(409,'One or more students are already enrolled');throw e}})} async remove(id:string,studentId:string){await this.section(id,'','ADMIN');const r=await this.prisma.enrollment.deleteMany({where:{sectionId:id,studentId}});if(!r.count)throw new AppError(404,'Enrollment not found');}}
+import type { PrismaClient } from '../../generated/prisma/client.js';
+import { AppError } from '../../errors/app-error.js';
+export class EnrollmentService {
+  public constructor(private readonly prisma: PrismaClient) {}
+  private async section(id: string, uid: string, role: string) {
+    const s = await this.prisma.section.findFirst({
+      where: { id, ...(role === 'ADMIN' ? {} : { teacherId: uid }) },
+      select: { id: true },
+    });
+    if (!s) throw new AppError(404, 'Section not found');
+    return s;
+  }
+  async list(id: string, uid: string, role: string) {
+    await this.section(id, uid, role);
+    return this.prisma.enrollment.findMany({
+      where: { sectionId: id },
+      include: { student: true },
+      orderBy: { student: { studentId: 'asc' } },
+    });
+  }
+  async enroll(id: string, studentId: string) {
+    await this.section(id, '', 'ADMIN');
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!student) throw new AppError(422, 'Student must be active');
+    try {
+      return await this.prisma.enrollment.create({
+        data: { sectionId: id, studentId },
+        include: { student: true },
+      });
+    } catch (e) {
+      if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002')
+        throw new AppError(409, 'Student is already enrolled');
+      throw e;
+    }
+  }
+  async bulk(id: string, ids: string[]) {
+    await this.section(id, '', 'ADMIN');
+    return this.prisma.$transaction(async (tx) => {
+      for (const sid of ids) {
+        const st = await tx.student.findFirst({
+          where: { id: sid, status: 'ACTIVE' },
+          select: { id: true },
+        });
+        if (!st) throw new AppError(422, 'All students must be active');
+      }
+      try {
+        return await tx.enrollment.createMany({
+          data: ids.map((studentId) => ({ sectionId: id, studentId })),
+        });
+      } catch (e) {
+        if (typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002')
+          throw new AppError(409, 'One or more students are already enrolled');
+        throw e;
+      }
+    });
+  }
+  async remove(id: string, studentId: string) {
+    await this.section(id, '', 'ADMIN');
+    const r = await this.prisma.enrollment.deleteMany({ where: { sectionId: id, studentId } });
+    if (!r.count) throw new AppError(404, 'Enrollment not found');
+  }
+}

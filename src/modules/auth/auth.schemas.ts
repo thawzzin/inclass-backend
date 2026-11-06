@@ -12,7 +12,10 @@ export const profileSchema = z
     name: z.string().trim().min(1).max(120).optional(),
     email: z.string().trim().email().max(320).optional(),
   })
-  .refine((value) => value.name !== undefined || value.email !== undefined, 'Provide at least one field');
+  .refine(
+    (value) => value.name !== undefined || value.email !== undefined,
+    'Provide at least one field',
+  );
 
 export const passwordChangeSchema = z.object({
   currentPassword: password,

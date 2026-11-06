@@ -4,7 +4,12 @@ import type { PrismaClient } from '../../generated/prisma/client.js';
 import type { Env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
 import type { PasswordChangeInput, LoginInput, ProfileInput } from './auth.schemas.js';
-import { generateRefreshToken, hashRefreshToken, signAccessToken, verifyAccessToken } from './auth.security.js';
+import {
+  generateRefreshToken,
+  hashRefreshToken,
+  signAccessToken,
+  verifyAccessToken,
+} from './auth.security.js';
 import type { AuthSessionResult, AuthUser } from './auth.types.js';
 
 const userSelect = {
@@ -23,7 +28,10 @@ export interface AuthServiceContract {
   login(input: LoginInput): Promise<AuthSessionResult>;
   refresh(refreshToken: string): Promise<AuthSessionResult>;
   logout(refreshToken: string | undefined): Promise<void>;
-  updateProfile(userId: string, input: ProfileInput): Promise<Partial<AuthSessionResult> & { user: AuthUser }>;
+  updateProfile(
+    userId: string,
+    input: ProfileInput,
+  ): Promise<Partial<AuthSessionResult> & { user: AuthUser }>;
   changePassword(userId: string, input: PasswordChangeInput): Promise<void>;
 }
 
@@ -36,7 +44,10 @@ export class AuthService implements AuthServiceContract {
   public async authenticate(accessToken: string): Promise<AuthUser> {
     try {
       const payload = await verifyAccessToken(accessToken, this.env);
-      const user = await this.prisma.user.findUnique({ where: { id: payload.userId }, select: userSelect });
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: userSelect,
+      });
       if (!user || user.status !== 'ACTIVE' || user.tokenVersion !== payload.tokenVersion) {
         throw new AppError(401, 'Authentication is invalid or expired');
       }
@@ -133,8 +144,12 @@ export class AuthService implements AuthServiceContract {
     userId: string,
     input: ProfileInput,
   ): Promise<Partial<AuthSessionResult> & { user: AuthUser }> {
-    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: userSelect });
-    if (!current || current.status !== 'ACTIVE') throw new AppError(401, 'Authentication is invalid or expired');
+    const current = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: userSelect,
+    });
+    if (!current || current.status !== 'ACTIVE')
+      throw new AppError(401, 'Authentication is invalid or expired');
 
     const email = input.email?.toLowerCase();
     const changingEmail = email !== undefined && email !== current.email;
@@ -152,7 +167,10 @@ export class AuthService implements AuthServiceContract {
           select: userSelect,
         });
         if (changingEmail) {
-          await transaction.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+          await transaction.refreshSession.updateMany({
+            where: { userId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
           await transaction.refreshSession.create({
             data: {
               userId,
@@ -167,29 +185,46 @@ export class AuthService implements AuthServiceContract {
       if (!refreshToken) return { user: this.toAuthUser(user) };
       return this.sessionResult(user, refreshToken);
     } catch (error) {
-      if (this.isUniqueConstraint(error)) throw new AppError(409, 'Email address is already in use');
+      if (this.isUniqueConstraint(error))
+        throw new AppError(409, 'Email address is already in use');
       throw error;
     }
   }
 
   public async changePassword(userId: string, input: PasswordChangeInput): Promise<void> {
-    if (input.currentPassword === input.newPassword) throw new AppError(422, 'New password must be different');
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    if (input.currentPassword === input.newPassword)
+      throw new AppError(422, 'New password must be different');
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
     if (!user || !(await argon2.verify(user.passwordHash, input.currentPassword))) {
       throw new AppError(401, 'Current password is incorrect');
     }
 
     const passwordHash = await argon2.hash(input.newPassword, { type: argon2.argon2id });
     await this.prisma.$transaction(async (transaction) => {
-      await transaction.user.update({ where: { id: userId }, data: { passwordHash, tokenVersion: { increment: 1 } } });
-      await transaction.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await transaction.user.update({
+        where: { id: userId },
+        data: { passwordHash, tokenVersion: { increment: 1 } },
+      });
+      await transaction.refreshSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
   }
 
-  private async sessionResult(user: DatabaseUser, refreshToken: string): Promise<AuthSessionResult> {
+  private async sessionResult(
+    user: DatabaseUser,
+    refreshToken: string,
+  ): Promise<AuthSessionResult> {
     return {
       user: this.toAuthUser(user),
-      accessToken: await signAccessToken({ userId: user.id, tokenVersion: user.tokenVersion }, this.env),
+      accessToken: await signAccessToken(
+        { userId: user.id, tokenVersion: user.tokenVersion },
+        this.env,
+      ),
       refreshToken,
     };
   }
@@ -199,7 +234,13 @@ export class AuthService implements AuthServiceContract {
   }
 
   private toAuthUser(user: DatabaseUser): AuthUser {
-    return { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+    };
   }
 
   private isUniqueConstraint(error: unknown): boolean {

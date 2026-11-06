@@ -28,5 +28,9 @@ export default tseslint.config(
     languageOptions: {
       globals: { ...globals.node, ...globals.vitest },
     },
+    rules: {
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/require-await': 'off',
+    },
   },
 );
