@@ -30,6 +30,8 @@ import { EnrollmentService } from './modules/enrollments/enrollments.service.js'
 import { createEnrollmentsRouter } from './modules/enrollments/enrollments.route.js';
 import { AttendanceService } from './modules/attendance/attendance.service.js';
 import { attendanceRouter } from './modules/attendance/attendance.route.js';
+import { DashboardService } from './modules/dashboard/dashboard.service.js';
+import { createDashboardRouter } from './modules/dashboard/dashboard.route.js';
 
 export interface CreateAppOptions {
   env?: Env;
@@ -52,6 +54,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const academicsService = options.academicsService ?? new AcademicsService(prisma);
   const enrollmentService = new EnrollmentService(prisma);
   const attendanceService = new AttendanceService(prisma);
+  const dashboardService = new DashboardService(prisma);
   const app = express();
 
   app.set('trust proxy', env.TRUST_PROXY);
@@ -84,6 +87,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
     createEnrollmentsRouter(authService, enrollmentService, env),
   );
   app.use('/api/v1', attendanceRouter(authService, attendanceService, env));
+  app.use('/api/v1/dashboard', createDashboardRouter(authService, dashboardService));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
