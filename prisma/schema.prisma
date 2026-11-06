@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+model User {
+  id                        String              @id @default(uuid()) @db.Uuid
+  name                      String
+  email                     String              @unique
+  passwordHash              String
+  role                      UserRole
+  status                    EntityStatus        @default(ACTIVE)
+  tokenVersion              Int                 @default(0)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  refreshSessions           RefreshSession[]
+  sections                  Section[]           @relation("SectionTeacher")
+  createdAttendanceSessions AttendanceSession[] @relation("AttendanceSessionCreator")
+
+  @@index([role, status])
+}
+
+model RefreshSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Student {
+  id             String                     @id @default(uuid()) @db.Uuid
+  studentId      String                     @unique
+  fullName       String
+  nickname       String?
+  status         EntityStatus               @default(ACTIVE)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  enrollments    Enrollment[]
+  sessionRosters AttendanceSessionStudent[]
+
+  @@index([status])
+  @@index([fullName])
+}
+
+model Course {
+  id        String       @id @default(uuid()) @db.Uuid
+  code      String       @unique
+  name      String
+  status    EntityStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  sections  Section[]
+
+  @@index([status])
+  @@index([name])
+}
+
+model Section {
+  id                 String              @id @default(uuid()) @db.Uuid
+  courseId           String              @db.Uuid
+  sectionCode        String
+  teacherId          String              @db.Uuid
+  status             EntityStatus        @default(ACTIVE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  course             Course              @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teacher            User                @relation("SectionTeacher", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  enrollments        Enrollment[]
+  attendanceSessions AttendanceSession[]
+
+  @@unique([courseId, sectionCode])
+  @@index([teacherId])
+  @@index([status])
+}
+
+model Enrollment {
+  id        String   @id @default(uuid()) @db.Uuid
+  studentId String   @db.Uuid
+  sectionId String   @db.Uuid
+  createdAt DateTime @default(now())
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  section   Section  @relation(fields: [sectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([studentId, sectionId])
+  @@index([sectionId])
+}
+
+model AttendanceSession {
+  id          String                     @id @default(uuid()) @db.Uuid
+  sectionId   String                     @db.Uuid
+  date        DateTime                   @db.Date
+  createdById String                     @db.Uuid
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  section     Section                    @relation(fields: [sectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User                       @relation("AttendanceSessionCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  roster      AttendanceSessionStudent[]
+
+  @@unique([sectionId, date])
+  @@index([date])
+  @@index([createdById])
+}
+
+model AttendanceSessionStudent {
+  id                    String            @id @default(uuid()) @db.Uuid
+  attendanceSessionId   String            @db.Uuid
+  studentId             String            @db.Uuid
+  attendanceSession     AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student               Student           @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attendanceRecord      AttendanceRecord?
+
+  @@unique([attendanceSessionId, studentId])
+  @@index([studentId])
+}
+
+model AttendanceRecord {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  attendanceSessionId   String                   @db.Uuid
+  studentId             String                   @db.Uuid
+  status                AttendanceStatus
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  attendanceSessionStudent AttendanceSessionStudent @relation(fields: [attendanceSessionId, studentId], references: [attendanceSessionId, studentId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([attendanceSessionId, studentId])
+  @@index([studentId])
+  @@index([status])
+}
