@@ -85,6 +85,21 @@ PATCH  /api/v1/auth/profile
 PATCH  /api/v1/auth/password
 ```
 
+## Teacher management
+
+All teacher-management routes require an authenticated `ADMIN` user and a CSRF token for writes. They only operate on users whose database role is `TEACHER`; administrator accounts cannot be accessed through these routes.
+
+```text
+GET    /api/v1/users
+POST   /api/v1/users
+GET    /api/v1/users/:id
+PATCH  /api/v1/users/:id
+PATCH  /api/v1/users/:id/status
+PATCH  /api/v1/users/:id/password
+```
+
+Changing a teacher password or status increments the token version and revokes that teacher's active refresh sessions.
+
 Login is limited to 10 requests per IP per 15 minutes in the local in-memory limiter. Before deploying more than one process, replace that store with a shared implementation such as Redis.
 
 `TRUST_PROXY` defaults to `false`. Enable it only when the deployment uses a correctly configured trusted reverse proxy; otherwise client-controlled `X-Forwarded-For` headers can undermine IP-based login throttling.
@@ -104,4 +119,4 @@ Database integration tests introduced in later phases must use a dedicated Neon 
 
 ## Current scope
 
-Phases 1–2 contain infrastructure, the initial data model and migration, health checks, secure JWT/cookie authentication, refresh-session rotation, profile management, password changes, CSRF protection, and login rate limiting. Teacher, student, course, section, enrollment, attendance, dashboard, seed, and OpenAPI modules remain deferred to later phases.
+Phases 1–3 contain infrastructure, the initial data model and migration, health checks, secure JWT/cookie authentication, teacher account management, profile management, password changes, CSRF protection, and login rate limiting. Student, course, section, enrollment, attendance, dashboard, seed, and OpenAPI modules remain deferred to later phases.

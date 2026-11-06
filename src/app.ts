@@ -14,18 +14,23 @@ import { createHealthRouter } from './routes/health.route.js';
 import { AuthService, type AuthServiceContract } from './modules/auth/auth.service.js';
 import { createAuthRouter } from './modules/auth/auth.route.js';
 import { getPrisma } from './lib/prisma.js';
+import { UserService, type UserServiceContract } from './modules/users/users.service.js';
+import { createUsersRouter } from './modules/users/users.route.js';
 
 export interface CreateAppOptions {
   env?: Env;
   checkDatabase?: DatabaseCheck;
   logger?: Logger;
   authService?: AuthServiceContract;
+  userService?: UserServiceContract;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const env = options.env ?? getEnv();
   const logger = options.logger ?? createLogger(env);
   const databaseCheck = options.checkDatabase ?? defaultDatabaseCheck;
+  const authService = options.authService ?? new AuthService(getPrisma(), env);
+  const userService = options.userService ?? new UserService(getPrisma());
   const app = express();
 
   app.set('trust proxy', env.TRUST_PROXY);
@@ -49,7 +54,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/v1/health', createHealthRouter(databaseCheck));
-  app.use('/api/v1/auth', createAuthRouter(options.authService ?? new AuthService(getPrisma(), env), env));
+  app.use('/api/v1/auth', createAuthRouter(authService, env));
+  app.use('/api/v1/users', createUsersRouter(authService, userService, env));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
