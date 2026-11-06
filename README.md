@@ -104,6 +104,10 @@ Changing a teacher password or status increments the token version and revokes t
 
 Administrators can manage the intentionally minimal student profile: university student ID, full name, optional nickname, and active/inactive status. `GET /api/v1/students` supports `page`, `pageSize`, `search`, and `status`; writes require CSRF protection.
 
+## Courses and sections
+
+Admins manage courses and sections at `/api/v1/courses` and `/api/v1/sections`; teachers can only read courses and sections assigned to them. Section assignment requires an active teacher and section codes are unique within a course.
+
 Login is limited to 10 requests per IP per 15 minutes in the local in-memory limiter. Before deploying more than one process, replace that store with a shared implementation such as Redis.
 
 `TRUST_PROXY` defaults to `false`. Enable it only when the deployment uses a correctly configured trusted reverse proxy; otherwise client-controlled `X-Forwarded-For` headers can undermine IP-based login throttling.

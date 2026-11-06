@@ -18,6 +18,8 @@ import { UserService, type UserServiceContract } from './modules/users/users.ser
 import { createUsersRouter } from './modules/users/users.route.js';
 import { StudentService, type StudentServiceContract } from './modules/students/students.service.js';
 import { createStudentsRouter } from './modules/students/students.route.js';
+import { AcademicsService, type AcademicsServiceContract } from './modules/academics/academics.service.js';
+import { createAcademicsRouter } from './modules/academics/academics.route.js';
 
 export interface CreateAppOptions {
   env?: Env;
@@ -26,6 +28,7 @@ export interface CreateAppOptions {
   authService?: AuthServiceContract;
   userService?: UserServiceContract;
   studentService?: StudentServiceContract;
+  academicsService?: AcademicsServiceContract;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
@@ -35,6 +38,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const authService = options.authService ?? new AuthService(getPrisma(), env);
   const userService = options.userService ?? new UserService(getPrisma());
   const studentService = options.studentService ?? new StudentService(getPrisma());
+  const academicsService = options.academicsService ?? new AcademicsService(getPrisma());
   const app = express();
 
   app.set('trust proxy', env.TRUST_PROXY);
@@ -61,6 +65,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/auth', createAuthRouter(authService, env));
   app.use('/api/v1/users', createUsersRouter(authService, userService, env));
   app.use('/api/v1/students', createStudentsRouter(authService, studentService, env));
+  app.use('/api/v1', createAcademicsRouter(authService, academicsService, env));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
