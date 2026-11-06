@@ -46,6 +46,16 @@ pnpm db:migrate:status
 
 Do not use `prisma db push` as a deployment strategy. Do not run `prisma migrate reset` against production or any branch containing data that must be retained.
 
+## Development seed data
+
+After applying migrations to a development or test Neon branch, run:
+
+```bash
+pnpm db:seed
+```
+
+The seed is idempotent and refuses to run with `NODE_ENV=production`. It creates the configured admin, two teachers, CSC480 with sections 901–903, 18 sample students, enrollments, and three sample attendance dates. The teacher seed password is `TeacherPassword123!`; change it before using any non-development environment.
+
 The initial migration is committed in `prisma/migrations`. In this environment it was prepared without installed Prisma dependencies or Neon credentials. After installing dependencies, compare it with Prisma's offline output before applying it:
 
 ```bash
