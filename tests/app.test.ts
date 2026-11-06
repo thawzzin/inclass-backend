@@ -10,6 +10,7 @@ const testEnv = parseEnv({
   DATABASE_URL: 'postgresql://user:password@pooler.example.neon.tech/inclass?sslmode=require',
   DIRECT_URL: 'postgresql://user:password@direct.example.neon.tech/inclass?sslmode=require',
   JWT_ACCESS_SECRET: 'a-secure-test-secret-that-is-at-least-32-characters',
+  CSRF_SECRET: 'another-secure-test-secret-at-least-32-characters',
   ACCESS_TOKEN_EXPIRES_IN: '15m',
   REFRESH_TOKEN_EXPIRES_IN_DAYS: '7',
   FRONTEND_URL: 'http://localhost:3000',

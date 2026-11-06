@@ -1,4 +1,5 @@
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import type { Logger } from 'pino';
@@ -10,11 +11,15 @@ import { AppError } from './errors/app-error.js';
 import { createErrorHandler, notFoundHandler } from './middleware/error.middleware.js';
 import { createRequestLogger } from './middleware/request-logger.middleware.js';
 import { createHealthRouter } from './routes/health.route.js';
+import { AuthService, type AuthServiceContract } from './modules/auth/auth.service.js';
+import { createAuthRouter } from './modules/auth/auth.route.js';
+import { getPrisma } from './lib/prisma.js';
 
 export interface CreateAppOptions {
   env?: Env;
   checkDatabase?: DatabaseCheck;
   logger?: Logger;
+  authService?: AuthServiceContract;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
@@ -23,6 +28,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const databaseCheck = options.checkDatabase ?? defaultDatabaseCheck;
   const app = express();
 
+  app.set('trust proxy', env.TRUST_PROXY);
   app.disable('x-powered-by');
   app.use(createRequestLogger(logger));
   app.use(helmet());
@@ -39,9 +45,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
       },
     }),
   );
+  app.use(cookieParser());
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/v1/health', createHealthRouter(databaseCheck));
+  app.use('/api/v1/auth', createAuthRouter(options.authService ?? new AuthService(getPrisma(), env), env));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));

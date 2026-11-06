@@ -25,10 +25,12 @@ const envSchema = z.object({
   DIRECT_URL: postgresSslUrl('DIRECT_URL'),
   TEST_DATABASE_URL: postgresSslUrl('TEST_DATABASE_URL').optional(),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must contain at least 32 characters'),
+  CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must contain at least 32 characters'),
   ACCESS_TOKEN_EXPIRES_IN: z.string().regex(/^\d+[smhd]$/, 'Invalid access token duration'),
   REFRESH_TOKEN_EXPIRES_IN_DAYS: z.coerce.number().int().positive(),
   FRONTEND_URL: z.url(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

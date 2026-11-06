@@ -69,6 +69,26 @@ GET /api/v1/health
 
 The endpoint returns `200` when Neon is reachable and `503` when the database check fails.
 
+## Authentication
+
+Authentication uses a short-lived signed access-token cookie and an opaque rotating refresh-token cookie. Both are `HttpOnly`; production cookies are also `Secure` and `SameSite=Lax`. The browser must first request `GET /api/v1/auth/csrf`, retain the returned readable CSRF cookie, and send the response token in `X-CSRF-Token` for every state-changing authentication request.
+
+Available Phase 2 routes:
+
+```text
+GET    /api/v1/auth/csrf
+POST   /api/v1/auth/login
+POST   /api/v1/auth/refresh
+POST   /api/v1/auth/logout
+GET    /api/v1/auth/me
+PATCH  /api/v1/auth/profile
+PATCH  /api/v1/auth/password
+```
+
+Login is limited to 10 requests per IP per 15 minutes in the local in-memory limiter. Before deploying more than one process, replace that store with a shared implementation such as Redis.
+
+`TRUST_PROXY` defaults to `false`. Enable it only when the deployment uses a correctly configured trusted reverse proxy; otherwise client-controlled `X-Forwarded-For` headers can undermine IP-based login throttling.
+
 ## Quality checks
 
 ```bash
@@ -84,4 +104,4 @@ Database integration tests introduced in later phases must use a dedicated Neon 
 
 ## Current scope
 
-Phase 1 contains the project infrastructure, complete initial data model, Neon/Prisma configuration, migration, health endpoint, structured logging, and centralized error handling. Authentication and all domain APIs are intentionally deferred to later phases.
+Phases 1–2 contain infrastructure, the initial data model and migration, health checks, secure JWT/cookie authentication, refresh-session rotation, profile management, password changes, CSRF protection, and login rate limiting. Teacher, student, course, section, enrollment, attendance, dashboard, seed, and OpenAPI modules remain deferred to later phases.
