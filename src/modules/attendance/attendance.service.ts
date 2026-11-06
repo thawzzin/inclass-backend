@@ -1,6 +1,52 @@
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
 import { AppError } from '../../errors/app-error.js';
-export class AttendanceService {
+import { calculateAttendanceStatistics } from './attendance.statistics.js';
+import type { AttendanceHistoryQuery } from './attendance.schemas.js';
+
+export interface AttendanceServiceContract {
+  list(sectionId: string, userId: string, role: string): Promise<unknown>;
+  create(sectionId: string, date: string, userId: string, role: string): Promise<unknown>;
+  detail(id: string, userId: string, role: string): Promise<unknown>;
+  bulk(
+    id: string,
+    records: { studentId: string; status: 'PRESENT' | 'ABSENT' | 'LATE' }[],
+    userId: string,
+    role: string,
+  ): Promise<unknown>;
+  update(
+    id: string,
+    studentId: string,
+    status: 'PRESENT' | 'ABSENT' | 'LATE',
+    userId: string,
+    role: string,
+  ): Promise<void>;
+  allPresent(id: string, userId: string, role: string): Promise<unknown>;
+  history(
+    query: AttendanceHistoryQuery,
+    userId: string,
+    role: string,
+  ): Promise<{
+    items: unknown[];
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  }>;
+  exportCsv(query: AttendanceHistoryQuery, userId: string, role: string): Promise<string>;
+  statistics(
+    sectionId: string,
+    query: Pick<AttendanceHistoryQuery, 'dateFrom' | 'dateTo'>,
+    userId: string,
+    role: string,
+  ): Promise<ReturnType<typeof calculateAttendanceStatistics>>;
+  studentHistory(
+    studentId: string,
+    query: Pick<AttendanceHistoryQuery, 'dateFrom' | 'dateTo'>,
+    userId: string,
+    role: string,
+  ): Promise<unknown>;
+}
+export class AttendanceService implements AttendanceServiceContract {
   constructor(private readonly p: PrismaClient) {}
   async allowed(sectionId: string, uid: string, role: string) {
     const s = await this.p.section.findFirst({
@@ -108,5 +154,153 @@ export class AttendanceService {
       if (data.length) await tx.attendanceRecord.createMany({ data });
       return { marked: data.length };
     });
+  }
+  private sessions(
+    query: Pick<AttendanceHistoryQuery, 'sectionId' | 'dateFrom' | 'dateTo'>,
+    uid: string,
+    role: string,
+  ): Prisma.AttendanceSessionWhereInput {
+    return {
+      ...(query.sectionId ? { sectionId: query.sectionId } : {}),
+      ...(query.dateFrom || query.dateTo
+        ? {
+            date: {
+              ...(query.dateFrom ? { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) } : {}),
+              ...(query.dateTo ? { lte: new Date(`${query.dateTo}T00:00:00.000Z`) } : {}),
+            },
+          }
+        : {}),
+      ...(role === 'ADMIN' ? {} : { section: { teacherId: uid } }),
+    };
+  }
+  async history(query: AttendanceHistoryQuery, uid: string, role: string) {
+    const session = this.sessions(query, uid, role);
+    const where: Prisma.AttendanceRecordWhereInput = {
+      attendanceSessionStudent: { attendanceSession: session },
+      ...(query.status ? { status: query.status } : {}),
+    };
+    const [total, items] = await this.p.$transaction([
+      this.p.attendanceRecord.count({ where }),
+      this.p.attendanceRecord.findMany({
+        where,
+        include: {
+          attendanceSessionStudent: {
+            include: {
+              student: true,
+              attendanceSession: { include: { section: { include: { course: true } } } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+    ]);
+    return {
+      items,
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      totalPages: Math.ceil(total / query.pageSize),
+    };
+  }
+  async exportCsv(query: AttendanceHistoryQuery, uid: string, role: string) {
+    const session = this.sessions(query, uid, role);
+    const records = await this.p.attendanceRecord.findMany({
+      where: {
+        attendanceSessionStudent: { attendanceSession: session },
+        ...(query.status ? { status: query.status } : {}),
+      },
+      include: {
+        attendanceSessionStudent: {
+          include: {
+            student: true,
+            attendanceSession: { include: { section: { include: { course: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    return [
+      'courseCode,sectionCode,date,studentId,fullName,status',
+      ...records.map((record) =>
+        [
+          record.attendanceSessionStudent.attendanceSession.section.course.code,
+          record.attendanceSessionStudent.attendanceSession.section.sectionCode,
+          record.attendanceSessionStudent.attendanceSession.date.toISOString().slice(0, 10),
+          record.attendanceSessionStudent.student.studentId,
+          record.attendanceSessionStudent.student.fullName,
+          record.status,
+        ]
+          .map(escape)
+          .join(','),
+      ),
+    ].join('\n');
+  }
+  async statistics(
+    sectionId: string,
+    query: Pick<AttendanceHistoryQuery, 'dateFrom' | 'dateTo'>,
+    uid: string,
+    role: string,
+  ) {
+    await this.allowed(sectionId, uid, role);
+    const session = this.sessions({ ...query, sectionId }, uid, role);
+    const [expected, present, absent, late] = await this.p.$transaction([
+      this.p.attendanceSessionStudent.count({ where: { attendanceSession: session } }),
+      this.p.attendanceRecord.count({
+        where: { status: 'PRESENT', attendanceSessionStudent: { attendanceSession: session } },
+      }),
+      this.p.attendanceRecord.count({
+        where: { status: 'ABSENT', attendanceSessionStudent: { attendanceSession: session } },
+      }),
+      this.p.attendanceRecord.count({
+        where: { status: 'LATE', attendanceSessionStudent: { attendanceSession: session } },
+      }),
+    ]);
+    return calculateAttendanceStatistics({ expected, present, absent, late });
+  }
+  async studentHistory(
+    studentId: string,
+    query: Pick<AttendanceHistoryQuery, 'dateFrom' | 'dateTo'>,
+    uid: string,
+    role: string,
+  ) {
+    const session = this.sessions(query, uid, role);
+    const items = await this.p.attendanceSessionStudent.findMany({
+      where: { studentId, attendanceSession: session },
+      include: {
+        attendanceSession: { include: { section: { include: { course: true } } } },
+        attendanceRecord: true,
+      },
+      orderBy: { attendanceSession: { date: 'desc' } },
+    });
+    if (!items.length) {
+      const student = await this.p.student.findUnique({
+        where: { id: studentId },
+        select: { id: true },
+      });
+      if (!student) throw new AppError(404, 'Student not found');
+    }
+    const statistics = await this.statisticsForSessionWhere({
+      ...session,
+      roster: { some: { studentId } },
+    });
+    return { items, statistics };
+  }
+  private async statisticsForSessionWhere(session: Prisma.AttendanceSessionWhereInput) {
+    const [expected, present, absent, late] = await this.p.$transaction([
+      this.p.attendanceSessionStudent.count({ where: { attendanceSession: session } }),
+      this.p.attendanceRecord.count({
+        where: { status: 'PRESENT', attendanceSessionStudent: { attendanceSession: session } },
+      }),
+      this.p.attendanceRecord.count({
+        where: { status: 'ABSENT', attendanceSessionStudent: { attendanceSession: session } },
+      }),
+      this.p.attendanceRecord.count({
+        where: { status: 'LATE', attendanceSessionStudent: { attendanceSession: session } },
+      }),
+    ]);
+    return calculateAttendanceStatistics({ expected, present, absent, late });
   }
 }

@@ -6,8 +6,9 @@ import { AppError } from '../../errors/app-error.js';
 import { authenticate, csrfProtection } from '../../middleware/auth.middleware.js';
 import { validateBody } from '../../middleware/validate.middleware.js';
 import type { AuthServiceContract } from '../auth/auth.service.js';
-import type { AttendanceService } from './attendance.service.js';
+import type { AttendanceServiceContract } from './attendance.service.js';
 import {
+  attendanceHistoryQuery,
   bulkRecords,
   createSession,
   recordUpdate,
@@ -24,10 +25,71 @@ function pathParam(request: Request, name: string): string {
 
 export function attendanceRouter(
   auth: AuthServiceContract,
-  service: AttendanceService,
+  service: AttendanceServiceContract,
   env: Env,
 ): Router {
   const router = Router({ mergeParams: true });
+  router.get('/attendance-records', authenticate(auth), async (request, response, next) => {
+    const parsed = attendanceHistoryQuery.safeParse(request.query);
+    if (!parsed.success) return next(new AppError(422, 'Validation failed', parsed.error.issues));
+    try {
+      if (parsed.data.format === 'csv') {
+        response
+          .type('text/csv')
+          .attachment('attendance-records.csv')
+          .send(await service.exportCsv(parsed.data, request.auth!.id, request.auth!.role));
+        return;
+      }
+      const data = await service.history(parsed.data, request.auth!.id, request.auth!.role);
+      response.json({ success: true, data, message: 'Attendance records retrieved' });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get(
+    '/sections/:id/attendance-statistics',
+    authenticate(auth),
+    async (request, response, next) => {
+      const parsed = attendanceHistoryQuery
+        .pick({ dateFrom: true, dateTo: true })
+        .safeParse(request.query);
+      if (!parsed.success) return next(new AppError(422, 'Validation failed', parsed.error.issues));
+      try {
+        response.json({
+          success: true,
+          data: await service.statistics(
+            pathParam(request, 'id'),
+            parsed.data,
+            request.auth!.id,
+            request.auth!.role,
+          ),
+          message: 'Attendance statistics retrieved',
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.get('/students/:id/attendance', authenticate(auth), async (request, response, next) => {
+    const parsed = attendanceHistoryQuery
+      .pick({ dateFrom: true, dateTo: true })
+      .safeParse(request.query);
+    if (!parsed.success) return next(new AppError(422, 'Validation failed', parsed.error.issues));
+    try {
+      response.json({
+        success: true,
+        data: await service.studentHistory(
+          pathParam(request, 'id'),
+          parsed.data,
+          request.auth!.id,
+          request.auth!.role,
+        ),
+        message: 'Student attendance retrieved',
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
   router.get(
     '/sections/:id/attendance-sessions',
     authenticate(auth),
