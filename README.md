@@ -125,6 +125,10 @@ pnpm prisma:validate
 
 Database integration tests introduced in later phases must use a dedicated Neon test branch and isolate their data between test cases.
 
-## Current scope
+## Attendance and dashboard
 
-Phases 1–4 contain infrastructure, the initial data model and migration, health checks, secure JWT/cookie authentication, teacher and student management, profile management, password changes, CSRF protection, and login rate limiting. Course, section, enrollment, attendance, dashboard, seed, and OpenAPI modules remain deferred to later phases.
+Attendance sessions preserve their captured roster. History is available at `GET /api/v1/attendance-records` with `sectionId`, `dateFrom`, `dateTo`, `status`, `page`, and `pageSize` filters; add `format=csv` to export permitted records. Section summaries are at `/api/v1/sections/:id/attendance-statistics`, student history is at `/api/v1/students/:id/attendance`, and dashboard routes are under `/api/v1/dashboard`.
+
+## API documentation
+
+The starter OpenAPI contract is in `openapi.yaml`. Import it into Swagger Editor or another OpenAPI viewer. It documents the core health, authentication, attendance-history, and dashboard routes; the source routes remain authoritative while the contract is expanded in future maintenance.

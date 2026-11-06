@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: InClass API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      {
+        summary: Health check,
+        responses:
+          { '200': { description: Healthy }, '503': { description: Database unavailable } },
+      }
+  /auth/login:
+    post:
+      {
+        summary: Sign in with an administrator or teacher account,
+        responses:
+          { '200': { description: Authenticated }, '401': { description: Invalid credentials } },
+      }
+  /attendance-records:
+    get:
+      {
+        summary: List permitted attendance records or export CSV with format=csv,
+        responses: { '200': { description: Attendance records } },
+      }
+  /dashboard/summary:
+    get:
+      {
+        summary: Role-scoped dashboard summary,
+        responses: { '200': { description: Dashboard summary } },
+      }
+  /dashboard/attendance-stats:
+    get:
+      {
+        summary: Role-scoped attendance statistics,
+        responses: { '200': { description: Attendance statistics } },
+      }
+components:
+  securitySchemes:
+    accessCookie: { type: apiKey, in: cookie, name: inclass_access }
