@@ -16,6 +16,8 @@ import { createAuthRouter } from './modules/auth/auth.route.js';
 import { getPrisma } from './lib/prisma.js';
 import { UserService, type UserServiceContract } from './modules/users/users.service.js';
 import { createUsersRouter } from './modules/users/users.route.js';
+import { StudentService, type StudentServiceContract } from './modules/students/students.service.js';
+import { createStudentsRouter } from './modules/students/students.route.js';
 
 export interface CreateAppOptions {
   env?: Env;
@@ -23,6 +25,7 @@ export interface CreateAppOptions {
   logger?: Logger;
   authService?: AuthServiceContract;
   userService?: UserServiceContract;
+  studentService?: StudentServiceContract;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
@@ -31,6 +34,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const databaseCheck = options.checkDatabase ?? defaultDatabaseCheck;
   const authService = options.authService ?? new AuthService(getPrisma(), env);
   const userService = options.userService ?? new UserService(getPrisma());
+  const studentService = options.studentService ?? new StudentService(getPrisma());
   const app = express();
 
   app.set('trust proxy', env.TRUST_PROXY);
@@ -56,6 +60,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/health', createHealthRouter(databaseCheck));
   app.use('/api/v1/auth', createAuthRouter(authService, env));
   app.use('/api/v1/users', createUsersRouter(authService, userService, env));
+  app.use('/api/v1/students', createStudentsRouter(authService, studentService, env));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
