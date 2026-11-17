@@ -22,7 +22,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
   DATABASE_URL: postgresSslUrl('DATABASE_URL'),
-  DIRECT_URL: postgresSslUrl('DIRECT_URL'),
+  DIRECT_URL: postgresSslUrl('DIRECT_URL').optional(),
   TEST_DATABASE_URL: postgresSslUrl('TEST_DATABASE_URL').optional(),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must contain at least 32 characters'),
   CSRF_SECRET: z.string().min(32, 'CSRF_SECRET must contain at least 32 characters'),
@@ -31,9 +31,9 @@ const envSchema = z.object({
   FRONTEND_URL: z.url(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: z
-    .enum(['true', 'false'])
+    .enum(['true', 'false', '1'])
     .default('false')
-    .transform((value) => value === 'true'),
+    .transform((value) => (value === '1' ? 1 : value === 'true')),
 });
 
 export type Env = z.infer<typeof envSchema>;

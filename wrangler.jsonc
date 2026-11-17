@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "inclass-backend",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-17",
+  "containers": [
+    {
+      "class_name": "InclassApi",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": { "dockerfile": "./Dockerfile" },
+      },
+    },
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "API", "class_name": "InclassApi" }],
+  },
+  "exports": {
+    "InclassApi": { "type": "durable-object", "storage": "sqlite" },
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "PORT": "4000",
+    "ACCESS_TOKEN_EXPIRES_IN": "15m",
+    "REFRESH_TOKEN_EXPIRES_IN_DAYS": "7",
+    "LOG_LEVEL": "info",
+    "TRUST_PROXY": "1",
+  },
+  "secrets": {
+    "required": ["DATABASE_URL", "JWT_ACCESS_SECRET", "CSRF_SECRET", "FRONTEND_URL"],
+  },
+  "observability": { "enabled": true },
+}

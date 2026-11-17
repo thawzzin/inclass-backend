@@ -147,6 +147,18 @@ pnpm prisma:validate
 
 Database integration tests introduced in later phases must use a dedicated Neon test branch and isolate their data between test cases.
 
+## Cloudflare deployment
+
+The API runs in a Cloudflare Container behind the Worker defined in `wrangler.jsonc`. This preserves the existing Express server and native Argon2 dependency. A Workers Paid account and a running Docker-compatible engine are required to build and deploy the image. A cold container can take time to start.
+
+1. Apply migrations from a trusted machine with `DIRECT_URL` set: `pnpm db:migrate:deploy`. Keep migration credentials out of the container image.
+2. Set the Worker secrets using `pnpm exec wrangler secret put NAME` for each of `DATABASE_URL`, `JWT_ACCESS_SECRET`, `CSRF_SECRET`, and `FRONTEND_URL`. `DATABASE_URL` must be the pooled Neon URL. `FRONTEND_URL` must be the exact HTTPS frontend origin. `DIRECT_URL` is only needed for migrations and is not passed to the running API.
+3. Run `pnpm deploy`. Wrangler builds the Docker image and deploys the Worker. Check `https://<backend-host>/api/v1/health` after the container is provisioned.
+
+Use a backend hostname on the same site as the frontend hostname for the existing `SameSite=Lax` cookies. Configure the frontend build's `NEXT_PUBLIC_API_URL` to `https://<backend-host>/api/v1`. Keep production secrets out of `.env` files committed to Git. `pnpm preview:worker` runs the Worker and container locally; use a `.dev.vars` file with disposable development credentials and a running Docker engine.
+
+The Worker replaces any incoming `X-Forwarded-For` with Cloudflare's visitor IP before forwarding to the private container. The container trusts this one proxy hop so login rate limits remain per visitor. The limiter still uses process memory: its counters reset when the container restarts or sleeps, and a shared store is needed before scaling to multiple instances.
+
 ## Attendance and dashboard
 
 Attendance sessions preserve their captured roster. History is available at `GET /api/v1/attendance-records` with `sectionId`, `dateFrom`, `dateTo`, `status`, `page`, and `pageSize` filters; add `format=csv` to export permitted records. Section summaries are at `/api/v1/sections/:id/attendance-statistics`, student history is at `/api/v1/students/:id/attendance`, and dashboard routes are under `/api/v1/dashboard`.

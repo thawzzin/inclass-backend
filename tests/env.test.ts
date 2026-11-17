@@ -33,6 +33,12 @@ describe('parseEnv', () => {
     ).toThrow(/DATABASE_URL/);
   });
 
+  it('does not require the migration URL at runtime', () => {
+    expect(parseEnv({ ...validEnv, DIRECT_URL: undefined }).DATABASE_URL).toBe(
+      validEnv.DATABASE_URL,
+    );
+  });
+
   it('rejects a short access-token secret', () => {
     expect(() =>
       parseEnv({
@@ -44,5 +50,9 @@ describe('parseEnv', () => {
 
   it('does not enable proxy trust for the string false', () => {
     expect(parseEnv({ ...validEnv, TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+  });
+
+  it('trusts one proxy hop in the container deployment', () => {
+    expect(parseEnv({ ...validEnv, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
   });
 });
