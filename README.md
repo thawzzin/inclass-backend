@@ -29,6 +29,18 @@ pnpm prisma:generate
 
 Replace every placeholder in `.env` before starting the API. Generate a strong access-token secret, for example with `openssl rand -base64 48`.
 
+## Initial administrator
+
+After applying database migrations, create the first administrator through the interactive terminal command:
+
+```bash
+pnpm user:create
+```
+
+The command prompts for the administrator's name, email address, password, and confirmation. Password input is hidden and stored only as an Argon2id hash. It creates an `ADMIN` only when the database does not already contain one; after that, use the application to create and manage teacher accounts.
+
+This command is the production-safe bootstrap path. It does not expose a public registration endpoint and does not create student login accounts.
+
 ## Database migrations
 
 Create migrations only against a disposable development Neon branch:
