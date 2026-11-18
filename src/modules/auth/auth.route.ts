@@ -1,4 +1,3 @@
-import { rateLimit } from 'express-rate-limit';
 import { Router } from 'express';
 
 import type { Env } from '../../config/env.js';
@@ -21,18 +20,6 @@ import {
 } from './auth.schemas.js';
 import type { AuthServiceContract } from './auth.service.js';
 
-function loginRateLimiter() {
-  return rateLimit({
-    windowMs: 15 * 60_000,
-    limit: 10,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    handler: (_request, response) => {
-      response.status(429).json({ success: false, message: 'Too many login attempts', errors: [] });
-    },
-  });
-}
-
 export function createAuthRouter(service: AuthServiceContract, env: Env): Router {
   const router = Router();
 
@@ -46,7 +33,6 @@ export function createAuthRouter(service: AuthServiceContract, env: Env): Router
 
   router.post(
     '/login',
-    loginRateLimiter(),
     csrfProtection(env),
     validateBody(loginSchema),
     async (request, response, next) => {

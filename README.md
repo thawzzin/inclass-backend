@@ -37,7 +37,7 @@ After applying database migrations, create the first administrator through the i
 pnpm user:create
 ```
 
-The command prompts for the administrator's name, email address, password, and confirmation. Password input is hidden and stored only as an Argon2id hash. It creates an `ADMIN` only when the database does not already contain one; after that, use the application to create and manage teacher accounts.
+The command prompts for the administrator's name, email address, password, and confirmation. Password input is hidden and stored as a bcrypt hash using Neon's `pgcrypto` extension. It creates an `ADMIN` only when the database does not already contain one; after that, use the application to create and manage teacher accounts.
 
 This command is the production-safe bootstrap path. It does not expose a public registration endpoint and does not create student login accounts.
 
@@ -130,7 +130,7 @@ Administrators can manage the intentionally minimal student profile: university 
 
 Admins manage courses and sections at `/api/v1/courses` and `/api/v1/sections`; teachers can only read courses and sections assigned to them. Section assignment requires an active teacher and section codes are unique within a course.
 
-Login is limited to 10 requests per IP per 15 minutes in the local in-memory limiter. Before deploying more than one process, replace that store with a shared implementation such as Redis.
+The Worker limits login to 10 requests per visitor IP per 15 minutes using a shared Neon table. The local Node server does not apply this Worker ingress limit.
 
 `TRUST_PROXY` defaults to `false`. Enable it only when the deployment uses a correctly configured trusted reverse proxy; otherwise client-controlled `X-Forwarded-For` headers can undermine IP-based login throttling.
 
@@ -147,17 +147,18 @@ pnpm prisma:validate
 
 Database integration tests introduced in later phases must use a dedicated Neon test branch and isolate their data between test cases.
 
-## Cloudflare deployment
+## Cloudflare Workers Free deployment
 
-The API runs in a Cloudflare Container behind the Worker defined in `wrangler.jsonc`. This preserves the existing Express server and native Argon2 dependency. A Workers Paid account and a running Docker-compatible engine are required to build and deploy the image. A cold container can take time to start.
+The API is a standard Worker using Cloudflare's Express HTTP adapter. A separate frontend Worker calls it through a Service Binding, keeping browser cookies on the frontend's `workers.dev` origin.
 
-1. Apply migrations from a trusted machine with `DIRECT_URL` set: `pnpm db:migrate:deploy`. Keep migration credentials out of the container image.
-2. Set the Worker secrets using `pnpm exec wrangler secret put NAME` for each of `DATABASE_URL`, `JWT_ACCESS_SECRET`, `CSRF_SECRET`, and `FRONTEND_URL`. `DATABASE_URL` must be the pooled Neon URL. `FRONTEND_URL` must be the exact HTTPS frontend origin. `DIRECT_URL` is only needed for migrations and is not passed to the running API.
-3. Run `pnpm deploy`. Wrangler builds the Docker image and deploys the Worker. Check `https://<backend-host>/api/v1/health` after the container is provisioned.
+1. Apply migrations from a trusted machine with `DIRECT_URL` set: `pnpm db:migrate:deploy`. This enables `pgcrypto` and creates the shared login limit table. Do not provide `DIRECT_URL` to the Worker.
+2. Existing Argon2id hashes cannot be verified by the Worker. Run `pnpm user:password-status` with `DATABASE_URL` to count affected accounts. For each account, run `pnpm user:convert-password` in a trusted interactive terminal and enter its current password. This verifies the Argon2id hash locally, stores a bcrypt hash for the same password, and revokes existing sessions. If the current password is unavailable or exceeds 72 UTF-8 bytes, run `pnpm user:reset-password` instead. Repeat the status command until it reports zero. For a fresh database, run `pnpm user:create` after migrations instead.
+3. Add secrets with `pnpm exec wrangler secret put NAME` for `DATABASE_URL`, `JWT_ACCESS_SECRET`, `CSRF_SECRET`, and `FRONTEND_URL`. Use the pooled Neon URL. Set `FRONTEND_URL` to the exact HTTPS origin of the frontend Worker, such as `https://inclass-client.<your-subdomain>.workers.dev`.
+4. Run `pnpm build:worker` and `pnpm deploy`. The frontend Service Binding targets the Worker name `inclass-backend`. Check the backend's `/api/v1/health` route, then the same path through the frontend Worker after deploying it.
 
-Use a backend hostname on the same site as the frontend hostname for the existing `SameSite=Lax` cookies. Configure the frontend build's `NEXT_PUBLIC_API_URL` to `https://<backend-host>/api/v1`. Keep production secrets out of `.env` files committed to Git. `pnpm preview:worker` runs the Worker and container locally; use a `.dev.vars` file with disposable development credentials and a running Docker engine.
+For Cloudflare Git deployment, set the build command to `pnpm build:worker` and the deploy command to `pnpm deploy` in this repository. Deploy the frontend repository only after this Worker is available.
 
-The Worker replaces any incoming `X-Forwarded-For` with Cloudflare's visitor IP before forwarding to the private container. The container trusts this one proxy hop so login rate limits remain per visitor. The limiter still uses process memory: its counters reset when the container restarts or sleeps, and a shared store is needed before scaling to multiple instances.
+Use `.dev.vars` for disposable local Worker secrets. Keep production secrets out of Git. The Free plan's 10 ms CPU limit per request must be checked against real login and authenticated requests; successful bundling alone does not establish runtime compatibility.
 
 ## Attendance and dashboard
 

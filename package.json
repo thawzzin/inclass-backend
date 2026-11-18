@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
-    "build:worker": "pnpm prisma:generate && pnpm build",
+    "build:worker": "pnpm prisma:generate && pnpm build && wrangler deploy --dry-run --outdir .wrangler/build",
     "preview:worker": "wrangler dev",
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types worker-configuration.d.ts",
@@ -29,17 +29,18 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
     "db:seed": "tsx prisma/seed.ts",
-    "user:create": "node --import tsx src/cli/create-user.ts"
+    "user:create": "node --import tsx src/cli/create-user.ts",
+    "user:reset-password": "node --import tsx src/cli/reset-password.ts",
+    "user:convert-password": "node --import tsx src/cli/convert-password.ts",
+    "user:password-status": "node --import tsx src/cli/password-status.ts"
   },
   "dependencies": {
     "@prisma/adapter-neon": "^7.0.0",
     "@prisma/client": "^7.0.0",
-    "argon2": "^0.44.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.0.0",
     "helmet": "^8.1.0",
     "jose": "^6.0.0",
     "pino": "^10.0.0",
@@ -53,6 +54,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^6.0.0",
+    "argon2": "^0.44.0",
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
     "prettier": "^3.0.0",

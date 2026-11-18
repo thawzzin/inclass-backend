@@ -3,7 +3,15 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'src/generated/**', 'worker-configuration.d.ts'] },
+  {
+    ignores: [
+      'dist/**',
+      '.wrangler/**',
+      'coverage/**',
+      'src/generated/**',
+      'worker-configuration.d.ts',
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked.map((config) => ({
     ...config,

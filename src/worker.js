@@ -1,70 +1,45 @@
-/* global AbortSignal, Request, URL, scheduler */
-import { DurableObject } from 'cloudflare:workers';
+/* global URL, Response */
+import { httpServerHandler } from 'cloudflare:node';
+import { createHash } from 'node:crypto';
+
+import { createApp } from './app.js';
+import { getEnv } from './config/env.js';
+import { getPrisma } from './lib/prisma.js';
 
 const port = 4000;
-const idleTimeout = 2 * 60 * 1000;
+createApp({ env: getEnv() }).listen(port);
 
-export class InclassApi extends DurableObject {
-  starting;
-
-  async fetch(request) {
-    this.starting ??= this.startAndWait().finally(() => {
-      this.starting = undefined;
-    });
-    await this.starting;
-
-    const url = new URL(request.url);
-    url.protocol = 'http:';
-    url.host = 'container';
-    const forwarded = new Request(url, request);
-    forwarded.headers.delete('host');
-    forwarded.headers.delete('x-forwarded-for');
-    const clientIp = request.headers.get('cf-connecting-ip');
-    if (clientIp) forwarded.headers.set('x-forwarded-for', clientIp);
-    return this.ctx.container.getTcpPort(port).fetch(forwarded);
-  }
-
-  async startAndWait() {
-    const container = this.ctx.container;
-    if (!container.running) {
-      container.start({
-        image: container.images.base,
-        instance: 'basic',
-        env: {
-          NODE_ENV: this.env.NODE_ENV,
-          PORT: this.env.PORT,
-          DATABASE_URL: this.env.DATABASE_URL,
-          JWT_ACCESS_SECRET: this.env.JWT_ACCESS_SECRET,
-          CSRF_SECRET: this.env.CSRF_SECRET,
-          ACCESS_TOKEN_EXPIRES_IN: this.env.ACCESS_TOKEN_EXPIRES_IN,
-          REFRESH_TOKEN_EXPIRES_IN_DAYS: this.env.REFRESH_TOKEN_EXPIRES_IN_DAYS,
-          FRONTEND_URL: this.env.FRONTEND_URL,
-          LOG_LEVEL: this.env.LOG_LEVEL,
-          TRUST_PROXY: this.env.TRUST_PROXY,
-        },
-      });
-    }
-    await container.setInactivityTimeout(idleTimeout);
-
-    const endpoint = container.getTcpPort(port);
-    for (let attempt = 0; attempt < 100; attempt++) {
-      try {
-        const response = await endpoint.fetch('http://container/api/v1/health', {
-          signal: AbortSignal.timeout(1000),
-        });
-        await response.body?.cancel();
-        if (response.ok) return;
-      } catch {
-        // The container may still be starting.
-      }
-      await scheduler.wait(200);
-    }
-    throw new Error('InClass API container did not become healthy');
-  }
-}
+const handler = httpServerHandler({ port });
 
 export default {
-  fetch(request, env) {
-    return env.API.getByName('api').fetch(request);
+  async fetch(request, env, context) {
+    const url = new URL(request.url);
+    if (request.method === 'POST' && url.pathname === '/api/v1/auth/login') {
+      const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+      const ipHash = createHash('sha256').update(ip).digest('hex');
+      const prisma = getPrisma(env.DATABASE_URL);
+      const rows = await prisma.$queryRaw`
+        INSERT INTO "LoginRateLimit" ("ipHash", "windowStart", "attempts")
+        VALUES (${ipHash}, now(), 1)
+        ON CONFLICT ("ipHash") DO UPDATE SET
+          "windowStart" = CASE WHEN "LoginRateLimit"."windowStart" < now() - interval '15 minutes'
+            THEN now() ELSE "LoginRateLimit"."windowStart" END,
+          "attempts" = CASE WHEN "LoginRateLimit"."windowStart" < now() - interval '15 minutes'
+            THEN 1 ELSE "LoginRateLimit"."attempts" + 1 END
+        RETURNING "attempts"
+      `;
+      if (rows[0]?.attempts > 10) {
+        return Response.json(
+          { success: false, message: 'Too many login attempts', errors: [] },
+          { status: 429 },
+        );
+      }
+      if (Math.random() < 0.01) {
+        context.waitUntil(prisma.$executeRaw`
+          DELETE FROM "LoginRateLimit" WHERE "windowStart" < now() - interval '1 day'
+        `);
+      }
+    }
+    return handler.fetch(request, env, context);
   },
 };

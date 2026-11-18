@@ -1,5 +1,5 @@
-import argon2 from 'argon2';
 import type { PrismaClient } from '../../generated/prisma/client.js';
+import { hashPassword, verifyPassword } from '../../lib/password.js';
 
 import type { Env } from '../../config/env.js';
 import { AppError } from '../../errors/app-error.js';
@@ -61,7 +61,9 @@ export class AuthService implements AuthServiceContract {
   public async login(input: LoginInput): Promise<AuthSessionResult> {
     const email = input.email.toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
-    const validPassword = user ? await argon2.verify(user.passwordHash, input.password) : false;
+    const validPassword = user
+      ? await verifyPassword(this.prisma, input.password, user.passwordHash)
+      : false;
     if (!user || !validPassword || user.status !== 'ACTIVE') {
       throw new AppError(401, 'Invalid email or password');
     }
@@ -198,11 +200,11 @@ export class AuthService implements AuthServiceContract {
       where: { id: userId },
       select: { passwordHash: true },
     });
-    if (!user || !(await argon2.verify(user.passwordHash, input.currentPassword))) {
+    if (!user || !(await verifyPassword(this.prisma, input.currentPassword, user.passwordHash))) {
       throw new AppError(401, 'Current password is incorrect');
     }
 
-    const passwordHash = await argon2.hash(input.newPassword, { type: argon2.argon2id });
+    const passwordHash = await hashPassword(this.prisma, input.newPassword);
     await this.prisma.$transaction(async (transaction) => {
       await transaction.user.update({
         where: { id: userId },

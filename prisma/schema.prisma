@@ -7,6 +7,14 @@ datasource db {
   provider = "postgresql"
 }
 
+model LoginRateLimit {
+  ipHash      String   @id
+  windowStart DateTime @db.Timestamptz(6)
+  attempts    Int
+
+  @@index([windowStart])
+}
+
 enum UserRole {
   ADMIN
   TEACHER

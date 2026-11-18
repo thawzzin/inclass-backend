@@ -1,6 +1,5 @@
 import 'dotenv/config';
 
-import argon2 from 'argon2';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { Writable } from 'node:stream';
@@ -9,12 +8,15 @@ import { z } from 'zod';
 
 import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
 import { disconnectPrisma, getPrisma } from '../lib/prisma.js';
+import { hashPassword, isPasswordLengthValid } from '../lib/password.js';
 
 const initialAdminSchema = z
   .object({
     name: z.string().trim().min(1, 'Name is required').max(120),
     email: z.string().trim().email('Enter a valid email address').max(320),
-    password: z.string().min(6, 'Password must contain at least 12 characters').max(128),
+    password: z.string().min(12).max(128).refine(isPasswordLengthValid, {
+      message: 'Password must be at most 72 UTF-8 bytes',
+    }),
     passwordConfirmation: z.string(),
   })
   .refine((input) => input.password === input.passwordConfirmation, {
@@ -69,8 +71,6 @@ export function formatCreateUserError(error: unknown): string {
 
 type PasswordHasher = (password: string) => Promise<string>;
 
-const hashPassword: PasswordHasher = (password) => argon2.hash(password, { type: argon2.argon2id });
-
 export const initialAdminTransactionOptions = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
   maxWait: 30_000,
@@ -80,7 +80,7 @@ export const initialAdminTransactionOptions = {
 export async function createInitialAdmin(
   input: InitialAdminInput,
   repository: InitialAdminRepository,
-  hasher: PasswordHasher = hashPassword,
+  hasher: PasswordHasher,
 ): Promise<InitialAdminRecord> {
   const parsed = initialAdminSchema.parse(input);
   const created = await repository.createIfNone({
@@ -109,7 +109,7 @@ class PrismaInitialAdminRepository implements InitialAdminRepository {
   }
 }
 
-class TerminalPrompter {
+export class TerminalPrompter {
   private muted = false;
   private readonly mutedOutput = new Writable({
     write: (chunk: string | Buffer, _encoding, callback) => {
@@ -171,6 +171,7 @@ async function main(): Promise<void> {
     const user = await createInitialAdmin(
       { name, email, password, passwordConfirmation },
       repository,
+      (value) => hashPassword(getPrisma(databaseUrl), value),
     );
     process.stdout.write(`Initial administrator created: ${user.email}\n`);
   } finally {

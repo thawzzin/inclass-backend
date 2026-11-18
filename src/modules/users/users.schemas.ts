@@ -1,6 +1,9 @@
 import { z } from 'zod';
+import { isPasswordLengthValid } from '../../lib/password.js';
 
-const password = z.string().min(12).max(128);
+const password = z.string().min(12).max(128).refine(isPasswordLengthValid, {
+  message: 'Password must be at most 72 UTF-8 bytes',
+});
 const email = z.string().trim().email().max(320);
 const name = z.string().trim().min(1).max(120);
 

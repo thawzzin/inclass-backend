@@ -1,5 +1,5 @@
-import argon2 from 'argon2';
 import type { PrismaClient } from '../../generated/prisma/client.js';
+import { hashPassword } from '../../lib/password.js';
 
 import { AppError } from '../../errors/app-error.js';
 import type { AuthUser } from '../auth/auth.types.js';
@@ -79,7 +79,7 @@ export class UserService implements UserServiceContract {
         data: {
           name: input.name,
           email: input.email.toLowerCase(),
-          passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }),
+          passwordHash: await hashPassword(this.prisma, input.password),
           role: 'TEACHER',
         },
         select: teacherSelect,
@@ -129,7 +129,7 @@ export class UserService implements UserServiceContract {
 
   public async changeTeacherPassword(id: string, input: TeacherPasswordInput): Promise<void> {
     await this.findTeacher(id);
-    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+    const passwordHash = await hashPassword(this.prisma, input.password);
     await this.prisma.$transaction(async (transaction) => {
       await transaction.user.update({
         where: { id },
