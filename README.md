@@ -17,7 +17,7 @@ Express and TypeScript REST API for the InClass student attendance management sy
 5. Ensure both URLs contain `sslmode=require`.
 6. Never point automated tests at the production branch. Use `TEST_DATABASE_URL` for a dedicated test branch.
 
-Prisma 7 reads the migration connection from `prisma.config.ts`, which uses `DIRECT_URL`. The application uses `DATABASE_URL` with `@prisma/adapter-neon` for normal pooled queries.
+Prisma 7 reads the migration connection from `prisma.config.ts`, which uses `DIRECT_URL`. Client generation and builds can run without it; migration commands require a real direct URL. The application uses `DATABASE_URL` with `@prisma/adapter-neon` for normal pooled queries.
 
 ## Installation
 
