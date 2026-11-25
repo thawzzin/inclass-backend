@@ -57,6 +57,27 @@ async function csrfToken(
 }
 
 describe('authentication routes', () => {
+  it('sets cross-site cookies for the production frontend', async () => {
+    const productionEnv = { ...env, NODE_ENV: 'production' as const };
+    const app = createApp({ env: productionEnv, authService: createAuthService() });
+    const csrfResponse = await request(app).get('/api/v1/auth/csrf');
+    const csrfCookies = ([] as string[]).concat(csrfResponse.headers['set-cookie'] ?? []);
+    expect(csrfCookies[0]).toContain('SameSite=None');
+    expect(csrfCookies[0]).toContain('Secure');
+
+    const [csrfCookie] = csrfCookies[0]!.split(';');
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .set('Cookie', csrfCookie!)
+      .set('X-CSRF-Token', csrfResponse.body.data.csrfToken as string)
+      .send({ email: 'admin@example.com', password: 'correct-horse-battery-staple' });
+
+    expect(response.status).toBe(200);
+    for (const cookie of ([] as string[]).concat(response.headers['set-cookie'] ?? [])) {
+      expect(cookie).toContain('SameSite=None');
+      expect(cookie).toContain('Secure');
+    }
+  });
   it('rejects a login request without a CSRF token', async () => {
     const app = createApp({ env, authService: createAuthService() });
 

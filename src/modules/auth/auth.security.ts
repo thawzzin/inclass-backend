@@ -25,7 +25,7 @@ function secureCookieOptions(env: Env, maxAge: number, httpOnly = true): CookieO
   return {
     httpOnly,
     secure: env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
     maxAge,
   };
