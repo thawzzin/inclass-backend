@@ -16,4 +16,20 @@
     "required": ["DATABASE_URL", "JWT_ACCESS_SECRET", "CSRF_SECRET"],
   },
   "observability": { "enabled": true },
+  "env": {
+    "preview": {
+      "name": "inclass-backend-preview",
+      "vars": {
+        "NODE_ENV": "production",
+        "ACCESS_TOKEN_EXPIRES_IN": "15m",
+        "REFRESH_TOKEN_EXPIRES_IN_DAYS": "7",
+        "LOG_LEVEL": "info",
+        "TRUST_PROXY": "false",
+        "FRONTEND_URL": "https://inclass-client-preview.thawzzin-dev.workers.dev",
+      },
+      "secrets": {
+        "required": ["DATABASE_URL", "JWT_ACCESS_SECRET", "CSRF_SECRET"],
+      },
+    },
+  },
 }
