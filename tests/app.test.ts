@@ -93,6 +93,38 @@ describe('application infrastructure', () => {
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   });
 
+  it('allows each origin listed in ALLOW_ORIGINS', async () => {
+    const app = createApp({
+      env: parseEnv({
+        ...testEnv,
+        PORT: String(testEnv.PORT),
+        REFRESH_TOKEN_EXPIRES_IN_DAYS: String(testEnv.REFRESH_TOKEN_EXPIRES_IN_DAYS),
+        TRUST_PROXY: 'false',
+        ALLOW_ORIGINS: 'https://dev.example.com, https://preview.example.com',
+      }),
+      checkDatabase: async () => undefined,
+    });
+
+    for (const origin of ['https://dev.example.com', 'https://preview.example.com']) {
+      const response = await request(app)
+        .options('/api/v1/auth/login')
+        .set('Origin', origin)
+        .set('Access-Control-Request-Method', 'POST');
+
+      expect(response.status).toBe(204);
+      expect(response.headers['access-control-allow-origin']).toBe(origin);
+      expect(response.headers['access-control-allow-credentials']).toBe('true');
+    }
+
+    const rejected = await request(app)
+      .options('/api/v1/auth/login')
+      .set('Origin', testEnv.FRONTEND_URL)
+      .set('Access-Control-Request-Method', 'POST');
+
+    expect(rejected.status).toBe(403);
+    expect(rejected.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
   it('rejects browser requests from an unapproved origin', async () => {
     const app = createApp({ env: testEnv, checkDatabase: async () => undefined });
 

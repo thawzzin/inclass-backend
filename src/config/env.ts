@@ -29,6 +29,7 @@ const envSchema = z.object({
   ACCESS_TOKEN_EXPIRES_IN: z.string().regex(/^\d+[smhd]$/, 'Invalid access token duration'),
   REFRESH_TOKEN_EXPIRES_IN_DAYS: z.coerce.number().int().positive(),
   FRONTEND_URL: z.url(),
+  ALLOW_ORIGINS: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TRUST_PROXY: z
     .enum(['true', 'false', '1'])
@@ -37,6 +38,13 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+export function allowedOrigins(env: Pick<Env, 'ALLOW_ORIGINS' | 'FRONTEND_URL'>): string[] {
+  return (env.ALLOW_ORIGINS || env.FRONTEND_URL)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
 
 export function parseEnv(input: NodeJS.ProcessEnv | Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(input);

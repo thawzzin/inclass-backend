@@ -3,7 +3,7 @@ import { httpServerHandler } from 'cloudflare:node';
 import { createHash } from 'node:crypto';
 
 import { createApp } from './app.js';
-import { getEnv } from './config/env.js';
+import { allowedOrigins, getEnv } from './config/env.js';
 import { getPrisma } from './lib/prisma.js';
 
 const port = 4000;
@@ -13,8 +13,9 @@ const handler = httpServerHandler({ port });
 
 function loginErrorResponse(request, env, status, message) {
   const headers = {};
-  if (request.headers.get('origin') === env.FRONTEND_URL) {
-    headers['Access-Control-Allow-Origin'] = env.FRONTEND_URL;
+  const origin = request.headers.get('origin');
+  if (origin && allowedOrigins(env).includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
     headers['Access-Control-Allow-Credentials'] = 'true';
     headers.Vary = 'Origin';
   }

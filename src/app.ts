@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import type { Logger } from 'pino';
 
 import { checkDatabase as defaultDatabaseCheck, type DatabaseCheck } from './config/database.js';
-import { getEnv, type Env } from './config/env.js';
+import { allowedOrigins, getEnv, type Env } from './config/env.js';
 import { createLogger } from './config/logger.js';
 import { AppError } from './errors/app-error.js';
 import { createErrorHandler, notFoundHandler } from './middleware/error.middleware.js';
@@ -56,6 +56,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const attendanceService = new AttendanceService(prisma);
   const dashboardService = new DashboardService(prisma);
   const app = express();
+  const corsOrigins = new Set(allowedOrigins(env));
 
   app.set('trust proxy', env.TRUST_PROXY);
   app.disable('x-powered-by');
@@ -65,7 +66,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
     cors({
       credentials: true,
       origin(origin, callback) {
-        if (!origin || origin === env.FRONTEND_URL) {
+        if (!origin || corsOrigins.has(origin)) {
           callback(null, true);
           return;
         }
