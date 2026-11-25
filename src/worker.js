@@ -11,7 +11,7 @@ createApp({ env: getEnv() }).listen(port);
 
 const handler = httpServerHandler({ port });
 
-function loginErrorResponse(request, env, status, message) {
+function errorResponse(request, env, status, message) {
   const headers = {};
   const origin = request.headers.get('origin');
   if (origin && allowedOrigins(env).includes(origin)) {
@@ -21,6 +21,15 @@ function loginErrorResponse(request, env, status, message) {
   }
 
   return Response.json({ success: false, message, errors: [] }, { status, headers });
+}
+
+function safeErrorDetails(error) {
+  const message = error instanceof Error ? error.message : '';
+  return {
+    name: error instanceof Error ? error.name : 'UnknownError',
+    code: error && typeof error === 'object' ? error.code : undefined,
+    message: /:\/\/|password|secret|token/i.test(message) ? '[redacted]' : message.slice(0, 200),
+  };
 }
 
 export default {
@@ -42,7 +51,7 @@ export default {
           RETURNING "attempts"
         `;
         if (rows[0]?.attempts > 10) {
-          return loginErrorResponse(request, env, 429, 'Too many login attempts');
+          return errorResponse(request, env, 429, 'Too many login attempts');
         }
         if (Math.random() < 0.01) {
           context.waitUntil(prisma.$executeRaw`
@@ -50,13 +59,15 @@ export default {
           `);
         }
       } catch (error) {
-        console.error('Login rate limit check failed', {
-          name: error instanceof Error ? error.name : 'UnknownError',
-          code: error && typeof error === 'object' ? error.code : undefined,
-        });
-        return loginErrorResponse(request, env, 503, 'Login is temporarily unavailable');
+        console.error('Login rate limit check failed', safeErrorDetails(error));
+        return errorResponse(request, env, 503, 'Login is temporarily unavailable');
       }
     }
-    return handler.fetch(request, env, context);
+    try {
+      return await handler.fetch(request, env, context);
+    } catch (error) {
+      console.error('Worker request failed', safeErrorDetails(error));
+      return errorResponse(request, env, 500, 'Internal server error');
+    }
   },
 };
