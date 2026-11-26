@@ -24,8 +24,8 @@
       "REFRESH_TOKEN_EXPIRES_IN_DAYS": "7",
       "LOG_LEVEL": "info",
       "TRUST_PROXY": "false",
-      "FRONTEND_URL": "https://dev-inclass-client.thawzzin-dev.workers.dev",
-      "ALLOW_ORIGINS": "https://dev-inclass-client.thawzzin-dev.workers.dev",
+      "FRONTEND_URL": "https://dev-inclass-client.zetthedev.workers.dev",
+      "ALLOW_ORIGINS": "https://dev-inclass-client.zetthedev.workers.dev",
     },
   },
 }
