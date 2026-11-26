@@ -14,6 +14,7 @@ import { createHealthRouter } from './routes/health.route.js';
 import { AuthService, type AuthServiceContract } from './modules/auth/auth.service.js';
 import { createAuthRouter } from './modules/auth/auth.route.js';
 import { getPrisma } from './lib/prisma.js';
+import type { PrismaClient } from './generated/prisma/client.js';
 import { UserService, type UserServiceContract } from './modules/users/users.service.js';
 import { createUsersRouter } from './modules/users/users.route.js';
 import {
@@ -41,13 +42,14 @@ export interface CreateAppOptions {
   userService?: UserServiceContract;
   studentService?: StudentServiceContract;
   academicsService?: AcademicsServiceContract;
+  prisma?: PrismaClient;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const env = options.env ?? getEnv();
   const logger = options.logger ?? createLogger(env);
-  const databaseCheck = options.checkDatabase ?? defaultDatabaseCheck;
-  const prisma = getPrisma(env.DATABASE_URL);
+  const prisma = options.prisma ?? getPrisma(env.DATABASE_URL);
+  const databaseCheck = options.checkDatabase ?? defaultDatabaseCheck(prisma);
   const authService = options.authService ?? new AuthService(prisma, env);
   const userService = options.userService ?? new UserService(prisma);
   const studentService = options.studentService ?? new StudentService(prisma);

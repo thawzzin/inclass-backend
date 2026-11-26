@@ -1,8 +1,9 @@
-import { getPrisma } from '../lib/prisma.js';
-import { getEnv } from './env.js';
+import type { PrismaClient } from '../generated/prisma/client.js';
 
 export type DatabaseCheck = () => Promise<void>;
 
-export const checkDatabase: DatabaseCheck = async () => {
-  await getPrisma(getEnv().DATABASE_URL).$queryRaw`SELECT 1`;
-};
+export const checkDatabase =
+  (prisma: PrismaClient): DatabaseCheck =>
+  async () => {
+    await prisma.$queryRaw`SELECT 1`;
+  };
