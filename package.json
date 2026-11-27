@@ -10,7 +10,7 @@
   },
   "packageManager": "pnpm@10.27.0",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "wrangler dev --port 4000 --env-file .env --compatibility-date 2026-11-11",
     "build": "tsc -p tsconfig.build.json",
     "build:worker": "pnpm prisma:generate && pnpm build && wrangler deploy --dry-run --outdir .wrangler/build",
     "preview:worker": "wrangler dev",

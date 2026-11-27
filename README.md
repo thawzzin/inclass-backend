@@ -83,7 +83,7 @@ Then verify and apply it on a development/test Neon branch before deployment.
 pnpm dev
 ```
 
-The API listens on `http://localhost:4000` by default. Database readiness is available at:
+This runs the Cloudflare Worker locally with the values from `.env`, using the same Prisma runtime as the deployed API. The local compatibility date is pinned to the version supported by the project's installed Wrangler binary; deployment keeps the date in `wrangler.jsonc`. The API listens on `http://localhost:4000` by default. Database readiness is available at:
 
 ```text
 GET /api/v1/health
